@@ -527,7 +527,7 @@ const inputClass = "w-full border rounded-md px-3 py-2 text-sm outline-none focu
 
 // ---------- Dashboard ----------
 function Dashboard({ db }) {
-  const stockValue = db.products.reduce((s, p) => s + p.price * p.qty, 0);
+  const stockValue = db.products.reduce((s, p) => s + (p.costPrice || 0) * p.qty, 0);
   const rupture = db.products.filter((p) => p.qty <= 0);
   const lowStock = db.products.filter((p) => p.qty > 0 && p.qty <= p.minQty);
   const revenue = db.sales.reduce((s, sale) => s + sale.total, 0);
@@ -582,7 +582,7 @@ function Dashboard({ db }) {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <StatCard label="Chiffre d'affaires" value={fmt(revenue) + " DHS"} icon={TrendingUp} />
         <StatCard label="Marge brute" value={fmt(grossMargin) + " DHS"} icon={PiggyBank} tone={grossMargin >= 0 ? "success" : "danger"} />
-        <StatCard label="Valeur du stock" value={fmt(stockValue) + " DHS"} icon={Boxes} />
+        <StatCard label="Valeur du stock (coût)" value={fmt(stockValue) + " DHS"} icon={Boxes} />
         <StatCard label="Ruptures de stock" value={rupture.length} icon={AlertTriangle} tone={rupture.length ? "danger" : "success"} />
         <StatCard label="Stock bas" value={lowStock.length} icon={AlertTriangle} tone={lowStock.length ? "danger" : "success"} />
       </div>
