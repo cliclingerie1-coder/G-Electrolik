@@ -787,9 +787,38 @@ function Stock({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="flex items-center gap-2 mb-3 border rounded-md px-3 py-2 max-w-sm" style={{ borderColor: C.border, background: "#fff" }}>
-        <Search size={14} color={C.inkSoft} />
-        <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: "#fff" }}>
+          <Search size={14} color={C.inkSoft} />
+          <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
+        </div>
+        <button
+          onClick={() => {
+            const ws = XLSX.utils.json_to_sheet(db.products.map((p) => ({
+              Produit: p.name,
+              SKU: p.sku,
+              "Code-barres": p.barcode || "",
+              Catégorie: p.category,
+              "Coût d'achat": p.costPrice || 0,
+              "Prix de vente": p.price,
+              "Marge (DHS)": p.price - (p.costPrice || 0),
+              "Marge (%)": p.price ? Math.round(((p.price - (p.costPrice || 0)) / p.price) * 100) : 0,
+              Quantité: p.qty,
+              "Seuil min.": p.minQty,
+              "Valeur stock (coût)": (p.costPrice || 0) * p.qty,
+              "Valeur stock (vente)": p.price * p.qty,
+              Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
+            })));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Stock");
+            XLSX.writeFile(wb, `stock-complet-${today()}.xlsx`);
+            notify("Export Excel téléchargé");
+          }}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
+          style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+        >
+          <Download size={14} /> Exporter (Excel)
+        </button>
       </div>
 
       <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
@@ -2006,11 +2035,23 @@ function Finance({ db, persist, notify, log, session }) {
           <button
             onClick={() => {
               const ws = XLSX.utils.json_to_sheet(db.products.map((p) => ({
-                Produit: p.name, SKU: p.sku, Catégorie: p.category, Prix: p.price, Quantité: p.qty,
+                Produit: p.name,
+                SKU: p.sku,
+                "Code-barres": p.barcode || "",
+                Catégorie: p.category,
+                "Coût d'achat": p.costPrice || 0,
+                "Prix de vente": p.price,
+                "Marge (DHS)": p.price - (p.costPrice || 0),
+                "Marge (%)": p.price ? Math.round(((p.price - (p.costPrice || 0)) / p.price) * 100) : 0,
+                Quantité: p.qty,
+                "Seuil min.": p.minQty,
+                "Valeur stock (coût)": (p.costPrice || 0) * p.qty,
+                "Valeur stock (vente)": p.price * p.qty,
+                Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
               })));
               const wb = XLSX.utils.book_new();
               XLSX.utils.book_append_sheet(wb, ws, "Stock");
-              XLSX.writeFile(wb, "stock.xlsx");
+              XLSX.writeFile(wb, `stock-complet-${today()}.xlsx`);
               notify("Export Excel téléchargé");
             }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border"
@@ -2023,7 +2064,19 @@ function Finance({ db, persist, notify, log, session }) {
             onClick={() => {
               const wb = XLSX.utils.book_new();
               XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.products.map((p) => ({
-                Produit: p.name, SKU: p.sku, Catégorie: p.category, Prix: p.price, Quantité: p.qty,
+                Produit: p.name,
+                SKU: p.sku,
+                "Code-barres": p.barcode || "",
+                Catégorie: p.category,
+                "Coût d'achat": p.costPrice || 0,
+                "Prix de vente": p.price,
+                "Marge (DHS)": p.price - (p.costPrice || 0),
+                "Marge (%)": p.price ? Math.round(((p.price - (p.costPrice || 0)) / p.price) * 100) : 0,
+                Quantité: p.qty,
+                "Seuil min.": p.minQty,
+                "Valeur stock (coût)": (p.costPrice || 0) * p.qty,
+                "Valeur stock (vente)": p.price * p.qty,
+                Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
               }))), "Stock");
               XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.purchases.map((p) => ({
                 Date: p.date, Produit: p.productName, Fournisseur: p.supplier, Quantité: p.qty, "Coût unitaire": p.unitCost, Total: p.total,
