@@ -1824,9 +1824,10 @@ function Finance({ db, persist, notify, log, session }) {
 
   const totalRevenue = db.sales.reduce((s, x) => s + x.total, 0);
   const totalCosts = db.purchases.reduce((s, x) => s + x.total, 0);
-  const stockValue = db.products.reduce((s, p) => s + p.price * p.qty, 0);
-  const netProfit = totalRevenue - totalCosts;
-  const currentCapital = (db.capital || 0) + netProfit;
+  const stockValue = db.products.reduce((s, p) => s + p.price * p.qty, 0); // valeur au prix de vente
+  const stockValueAtCost = db.products.reduce((s, p) => s + (p.costPrice || 0) * p.qty, 0); // valeur au coût d'achat
+  const cashProfit = totalRevenue - totalCosts; // bénéfice "caisse" : ce qui est déjà encaissé moins tout ce qui a été acheté
+  const currentCapital = (db.capital || 0) + cashProfit + stockValueAtCost; // patrimoine total : capital de départ + bénéfice encaissé + valeur de la marchandise encore en stock (au coût)
 
   // group by year
   const years = useMemo(() => {
@@ -1873,12 +1874,18 @@ function Finance({ db, persist, notify, log, session }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-3">
         <StatCard label="Capital initial" value={fmt(db.capital || 0) + " DHS"} icon={Wallet} />
-        <StatCard label="Bénéfice net cumulé" value={fmt(netProfit) + " DHS"} icon={TrendingUp} tone={netProfit >= 0 ? "success" : "danger"} />
-        <StatCard label="Capital actuel" value={fmt(currentCapital) + " DHS"} icon={PiggyBank} tone="success" />
-        <StatCard label="Valeur du stock" value={fmt(stockValue) + " DHS"} icon={Boxes} />
+        <StatCard label="Bénéfice encaissé" value={fmt(cashProfit) + " DHS"} icon={TrendingUp} tone={cashProfit >= 0 ? "success" : "danger"} />
+        <StatCard label="Stock (au coût)" value={fmt(stockValueAtCost) + " DHS"} icon={Boxes} />
       </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <StatCard label="Capital actuel (patrimoine total)" value={fmt(currentCapital) + " DHS"} icon={PiggyBank} tone="success" />
+        <StatCard label="Stock (valeur de revente)" value={fmt(stockValue) + " DHS"} icon={Boxes} />
+      </div>
+      <p className="text-xs -mt-5 mb-8" style={{ color: C.inkSoft }}>
+        Capital actuel = Capital initial + Bénéfice encaissé + Valeur de la marchandise encore en stock (comptée au coût d'achat, pas au prix de vente, car elle n'est pas encore vendue).
+      </p>
 
       <div className="rounded-lg border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div className="px-4 py-3 border-b" style={{ ...monoFont, fontSize: 11, color: C.inkSoft, borderColor: C.border }} >
