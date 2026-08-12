@@ -188,6 +188,7 @@ const DEFAULT_DB = {
   capital: 0,
   clients: [],
   suppliers: [],
+  supplierPayments: [],
   cheques: [],
   quotes: [],
   nextQuote: 1,
@@ -882,7 +883,7 @@ function Stock({ db, persist, notify, log }) {
 
 // ---------- Achats ----------
 function Achats({ db, persist, notify }) {
-  const [form, setForm] = useState({ productId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "" });
+  const [form, setForm] = useState({ productId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
   const useExisting = form.productId !== "";
 
   const submit = () => {
@@ -894,6 +895,7 @@ function Achats({ db, persist, notify }) {
     let productName = "";
     const qty = Number(form.qty);
     const unitCost = Number(form.unitCost);
+    const total = qty * unitCost;
 
     if (useExisting) {
       const idx = products.findIndex((p) => p.id === form.productId);
@@ -908,13 +910,19 @@ function Achats({ db, persist, notify }) {
     }
 
     let suppliers = [...db.suppliers];
-    if (!form.supplierId && supplierLabel) {
-      suppliers.push({ id: uid(), name: supplierLabel, phone: "" });
+    let supplierId = form.supplierId;
+    if (!supplierId && supplierLabel) {
+      const newSupplier = { id: uid(), name: supplierLabel, phone: "", balanceDue: 0 };
+      suppliers.push(newSupplier);
+      supplierId = newSupplier.id;
+    }
+    if (form.payment === "credit" && supplierId) {
+      suppliers = suppliers.map((s) => (s.id === supplierId ? { ...s, balanceDue: (s.balanceDue || 0) + total } : s));
     }
 
-    const purchase = { id: uid(), date: today(), productName, supplier: supplierLabel, qty, unitCost, total: qty * unitCost };
+    const purchase = { id: uid(), date: today(), productName, supplier: supplierLabel, supplierId, qty, unitCost, total, payment: form.payment };
     persist({ ...db, products, suppliers, purchases: [...db.purchases, purchase] });
-    setForm({ productId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "" });
+    setForm({ productId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
     notify("Achat enregistré, stock mis à jour");
   };
 
@@ -924,7 +932,7 @@ function Achats({ db, persist, notify }) {
 
       <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
-        <div className="grid md:grid-cols-5 gap-3">
+        <div className="grid md:grid-cols-6 gap-3">
           <Field label="Produit existant">
             <select className={inputClass} style={inputStyle} value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value })}>
               <option value="">— Nouveau produit —</option>
@@ -953,6 +961,12 @@ function Achats({ db, persist, notify }) {
           <Field label="Coût unitaire (DHS)">
             <input type="number" className={inputClass} style={inputStyle} value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} />
           </Field>
+          <Field label="Paiement">
+            <select className={inputClass} style={inputStyle} value={form.payment} onChange={(e) => setForm({ ...form, payment: e.target.value })}>
+              <option value="cash">Payé comptant</option>
+              <option value="credit">À crédit (je dois au fournisseur)</option>
+            </select>
+          </Field>
         </div>
         <button onClick={submit} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
           <PackagePlus size={14} /> Enregistrer l'achat
@@ -964,7 +978,7 @@ function Achats({ db, persist, notify }) {
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
               <td className="px-4 py-3">Date</td><td className="px-4 py-3">Produit</td><td className="px-4 py-3">Fournisseur</td>
-              <td className="px-4 py-3">Qté</td><td className="px-4 py-3">Coût unit.</td><td className="px-4 py-3">Total</td>
+              <td className="px-4 py-3">Qté</td><td className="px-4 py-3">Coût unit.</td><td className="px-4 py-3">Total</td><td className="px-4 py-3">Paiement</td>
             </tr>
           </thead>
           <tbody>
@@ -976,10 +990,17 @@ function Achats({ db, persist, notify }) {
                 <td className="px-4 py-3" style={monoFont}>{p.qty}</td>
                 <td className="px-4 py-3" style={monoFont}>{fmt(p.unitCost)}</td>
                 <td className="px-4 py-3" style={monoFont}>{fmt(p.total)} DHS</td>
+                <td className="px-4 py-3">
+                  {p.payment === "credit" ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: C.dangerSoft, color: C.danger }}>CRÉDIT</span>
+                  ) : (
+                    <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: C.successSoft, color: C.success }}>COMPTANT</span>
+                  )}
+                </td>
               </tr>
             ))}
             {db.purchases.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun achat enregistré.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun achat enregistré.</td></tr>
             )}
           </tbody>
         </table>
@@ -1372,10 +1393,11 @@ function Clients({ db, persist, notify, log }) {
 // ---------- Fournisseurs ----------
 function Fournisseurs({ db, persist, notify, log }) {
   const [form, setForm] = useState({ name: "", phone: "" });
+  const [payForm, setPayForm] = useState({ supplierId: "", amount: "" });
 
   const addSupplier = () => {
     if (!form.name) return notify("Nom requis");
-    persist({ ...db, suppliers: [...db.suppliers, { id: uid(), name: form.name, phone: form.phone }] });
+    persist({ ...db, suppliers: [...db.suppliers, { id: uid(), name: form.name, phone: form.phone, balanceDue: 0 }] });
     setForm({ name: "", phone: "" });
     notify("Fournisseur ajouté");
   };
@@ -1388,11 +1410,35 @@ function Fournisseurs({ db, persist, notify, log }) {
     if (s) notify(`Fournisseur "${s.name}" supprimé`, () => persist(prevDb));
   };
 
+  const recordPayment = () => {
+    const supplier = db.suppliers.find((s) => s.id === payForm.supplierId);
+    const amount = Number(payForm.amount);
+    if (!supplier || !amount || amount <= 0) return notify("Fournisseur et montant requis");
+    const suppliers = db.suppliers.map((s) =>
+      s.id === supplier.id ? { ...s, balanceDue: Math.max(0, (s.balanceDue || 0) - amount) } : s
+    );
+    const payment = { id: uid(), date: today(), supplierId: supplier.id, supplierName: supplier.name, amount };
+    persist({ ...db, suppliers, supplierPayments: [...(db.supplierPayments || []), payment] });
+    if (log) log("pay_supplier", "suppliers", supplier.id, { name: supplier.name, amount });
+    setPayForm({ supplierId: "", amount: "" });
+    notify(`Paiement de ${fmt(amount)} DHS enregistré pour ${supplier.name}`);
+  };
+
   const spentBySupplier = (name) => db.purchases.filter((p) => p.supplier === name).reduce((s, p) => s + p.total, 0);
+  const totalDue = db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0);
 
   return (
     <div>
-      <SectionTitle eyebrow="Registre" title="Fournisseurs" />
+      <SectionTitle
+        eyebrow="Registre"
+        title="Fournisseurs"
+        action={
+          <div className="text-right">
+            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Total dû aux fournisseurs</div>
+            <div style={{ ...displayFont, color: C.danger }} className="text-xl">{fmt(totalDue)} DHS</div>
+          </div>
+        }
+      />
       <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau fournisseur</div>
         <div className="grid md:grid-cols-3 gap-3">
@@ -1404,11 +1450,29 @@ function Fournisseurs({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Enregistrer un paiement</div>
+        <div className="grid md:grid-cols-3 gap-3">
+          <Field label="Fournisseur">
+            <select className={inputClass} style={inputStyle} value={payForm.supplierId} onChange={(e) => setPayForm({ ...payForm, supplierId: e.target.value })}>
+              <option value="">— Choisir —</option>
+              {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name} ({fmt(s.balanceDue || 0)} DHS dû)</option>)}
+            </select>
+          </Field>
+          <Field label="Montant payé (DHS)">
+            <input type="number" className={inputClass} style={inputStyle} value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} />
+          </Field>
+        </div>
+        <button onClick={recordPayment} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.success, color: C.success }}>
+          <Save size={14} /> Enregistrer le paiement
+        </button>
+      </div>
+
+      <div className="rounded-lg border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Total achats</td><td className="px-4 py-3"></td>
+              <td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Total achats</td><td className="px-4 py-3">Solde dû</td><td className="px-4 py-3"></td>
             </tr>
           </thead>
           <tbody>
@@ -1417,11 +1481,35 @@ function Fournisseurs({ db, persist, notify, log }) {
                 <td className="px-4 py-3" style={{ color: C.ink }}>{s.name}</td>
                 <td className="px-4 py-3 flex items-center gap-1" style={{ color: C.inkSoft }}><Phone size={12} />{s.phone || "—"}</td>
                 <td className="px-4 py-3" style={monoFont}>{fmt(spentBySupplier(s.name))} DHS</td>
+                <td className="px-4 py-3" style={{ ...monoFont, color: (s.balanceDue || 0) > 0 ? C.danger : C.success }}>{fmt(s.balanceDue || 0)} DHS</td>
                 <td className="px-4 py-3 text-right"><button onClick={() => removeSupplier(s.id)}><Trash2 size={14} color={C.danger} /></button></td>
               </tr>
             ))}
             {db.suppliers.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun fournisseur enregistré.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun fournisseur enregistré.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique des paiements</div>
+      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Montant</td>
+            </tr>
+          </thead>
+          <tbody>
+            {[...(db.supplierPayments || [])].reverse().map((p) => (
+              <tr key={p.id} className="border-b" style={{ borderColor: C.border }}>
+                <td className="px-4 py-3" style={monoFont}>{p.date}</td>
+                <td className="px-4 py-3">{p.supplierName}</td>
+                <td className="px-4 py-3" style={{ ...monoFont, color: C.success }}>{fmt(p.amount)} DHS</td>
+              </tr>
+            ))}
+            {(!db.supplierPayments || db.supplierPayments.length === 0) && (
+              <tr><td colSpan={3} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun paiement enregistré.</td></tr>
             )}
           </tbody>
         </table>
@@ -1916,6 +2004,19 @@ function Finance({ db, persist, notify, log, session }) {
       <p className="text-xs -mt-5 mb-8" style={{ color: C.inkSoft }}>
         Capital actuel = Capital initial + Bénéfice encaissé + Valeur de la marchandise encore en stock (comptée au coût d'achat, pas au prix de vente, car elle n'est pas encore vendue).
       </p>
+
+      <div className="grid md:grid-cols-2 gap-4 mb-8">
+        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Créances clients (à recevoir)</div>
+          <div style={{ ...displayFont, color: C.success }} className="text-2xl">{fmt(db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0))} DHS</div>
+          <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vos clients vous doivent (ventes à crédit).</p>
+        </div>
+        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dettes fournisseurs (à payer)</div>
+          <div style={{ ...displayFont, color: C.danger }} className="text-2xl">{fmt(db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0))} DHS</div>
+          <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vous devez à vos fournisseurs (achats à crédit).</p>
+        </div>
+      </div>
 
       <div className="rounded-lg border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div className="px-4 py-3 border-b" style={{ ...monoFont, fontSize: 11, color: C.inkSoft, borderColor: C.border }} >
