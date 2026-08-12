@@ -4,7 +4,7 @@ import {
   Plus, Trash2, X, Search, TrendingUp, AlertTriangle,
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
-  FileText, ClipboardList, UserCog, Barcode
+  FileText, ClipboardList, UserCog, Barcode, BarChart3
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -248,6 +248,7 @@ export default function App() {
 
   const nav = [
     { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+    { id: "rapports", label: "Rapports", icon: BarChart3 },
     { id: "devis", label: "Devis", icon: FileText },
     { id: "achats", label: "Achats", icon: PackagePlus },
     { id: "ventes", label: "Ventes / PDV", icon: ShoppingCart },
@@ -330,6 +331,7 @@ export default function App() {
       {/* Main */}
       <main className="flex-1 p-5 md:p-10 max-w-6xl">
         {tab === "dashboard" && <Dashboard db={db} />}
+        {tab === "rapports" && <Rapports db={db} />}
         {tab === "devis" && <Devis db={db} persist={persist} notify={notify} log={log} />}
         {tab === "achats" && <Achats db={db} persist={persist} notify={notify} />}
         {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} />}
@@ -681,6 +683,151 @@ function Dashboard({ db }) {
             </ul>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Rapports (hebdomadaire / mensuel) ----------
+function isoWeekKey(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  const day = (d.getDay() + 6) % 7; // lundi = 0
+  d.setDate(d.getDate() - day + 3); // jeudi de cette semaine
+  const firstThursday = new Date(d.getFullYear(), 0, 4);
+  const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
+  return `${d.getFullYear()}-S${String(week).padStart(2, "0")}`;
+}
+function monthKey(dateStr) {
+  return dateStr.slice(0, 7); // YYYY-MM
+}
+
+function Rapports({ db }) {
+  const [view, setView] = useState("week");
+
+  const grouped = useMemo(() => {
+    const map = {};
+    db.sales.forEach((s) => {
+      const key = view === "week" ? isoWeekKey(s.date) : monthKey(s.date);
+      if (!map[key]) map[key] = { period: key, total: 0, count: 0, margin: 0 };
+      map[key].total += s.total;
+      map[key].count += 1;
+      map[key].margin += (s.items || []).reduce((sm, item) => {
+        const prod = db.products.find((p) => p.id === item.productId);
+        const cost = prod ? prod.costPrice || 0 : 0;
+        return sm + (item.price - cost) * item.qty;
+      }, 0);
+    });
+    return Object.values(map).sort((a, b) => a.period.localeCompare(b.period));
+  }, [db.sales, db.products, view]);
+
+  const recent = grouped.slice(-(view === "week" ? 10 : 12));
+  const current = recent[recent.length - 1];
+  const previous = recent[recent.length - 2];
+  const change = current && previous && previous.total > 0
+    ? Math.round(((current.total - previous.total) / previous.total) * 100)
+    : null;
+
+  const exportExcel = () => {
+    const rows = grouped.map((g) => ({
+      Période: g.period,
+      "Chiffre d'affaires": g.total,
+      "Nombre de ventes": g.count,
+      "Panier moyen": g.count ? Math.round(g.total / g.count) : 0,
+      Marge: Math.round(g.margin),
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, view === "week" ? "Hebdomadaire" : "Mensuel");
+    XLSX.writeFile(wb, `rapport-${view === "week" ? "hebdo" : "mensuel"}-${today()}.xlsx`);
+  };
+
+  return (
+    <div>
+      <SectionTitle
+        eyebrow="Analyse"
+        title="Rapports des ventes"
+        action={
+          <div className="flex items-center gap-2">
+            <div className="flex rounded-md border overflow-hidden" style={{ borderColor: C.border }}>
+              <button
+                onClick={() => setView("week")}
+                className="px-3 py-1.5 text-xs"
+                style={{ background: view === "week" ? C.accent : "#fff", color: view === "week" ? "#fff" : C.ink }}
+              >
+                Hebdomadaire
+              </button>
+              <button
+                onClick={() => setView("month")}
+                className="px-3 py-1.5 text-xs"
+                style={{ background: view === "month" ? C.accent : "#fff", color: view === "month" ? "#fff" : C.ink }}
+              >
+                Mensuel
+              </button>
+            </div>
+            <button onClick={exportExcel} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
+              <Download size={13} /> Excel
+            </button>
+          </div>
+        }
+      />
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <StatCard label={view === "week" ? "Cette semaine" : "Ce mois"} value={current ? fmt(current.total) + " DHS" : "—"} icon={TrendingUp} />
+        <StatCard
+          label="Évolution"
+          value={change === null ? "—" : (change >= 0 ? "+" : "") + change + "%"}
+          icon={TrendingUp}
+          tone={change === null ? "default" : change >= 0 ? "success" : "danger"}
+        />
+        <StatCard label="Ventes" value={current ? current.count : 0} icon={ShoppingCart} />
+        <StatCard label="Panier moyen" value={current && current.count ? fmt(Math.round(current.total / current.count)) + " DHS" : "—"} icon={Receipt} />
+      </div>
+
+      <div className="rounded-lg border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
+          {view === "week" ? "Chiffre d'affaires par semaine" : "Chiffre d'affaires par mois"}
+        </div>
+        {recent.length === 0 ? (
+          <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <BarChart data={recent}>
+              <CartesianGrid stroke={C.border} vertical={false} />
+              <XAxis dataKey="period" tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={{ stroke: C.border }} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={false} tickLine={false} width={45} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: C.border }} formatter={(v) => fmt(v) + " DHS"} />
+              <Bar dataKey="total" fill={C.accent} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+              <td className="px-4 py-3">Période</td>
+              <td className="px-4 py-3">Chiffre d'affaires</td>
+              <td className="px-4 py-3">Ventes</td>
+              <td className="px-4 py-3">Panier moyen</td>
+              <td className="px-4 py-3">Marge</td>
+            </tr>
+          </thead>
+          <tbody>
+            {[...recent].reverse().map((g) => (
+              <tr key={g.period} className="border-b" style={{ borderColor: C.border }}>
+                <td className="px-4 py-3" style={displayFont}>{g.period}</td>
+                <td className="px-4 py-3" style={monoFont}>{fmt(g.total)} DHS</td>
+                <td className="px-4 py-3" style={monoFont}>{g.count}</td>
+                <td className="px-4 py-3" style={monoFont}>{g.count ? fmt(Math.round(g.total / g.count)) : 0} DHS</td>
+                <td className="px-4 py-3" style={{ ...monoFont, color: g.margin >= 0 ? C.success : C.danger }}>{fmt(g.margin)} DHS</td>
+              </tr>
+            ))}
+            {recent.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune donnée pour l'instant.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
