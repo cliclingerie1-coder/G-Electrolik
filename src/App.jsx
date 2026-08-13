@@ -4,7 +4,7 @@ import {
   Plus, Trash2, X, Search, TrendingUp, AlertTriangle,
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
-  FileText, ClipboardList, UserCog, Barcode, BarChart3
+  FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -194,6 +194,9 @@ const DEFAULT_DB = {
   nextQuote: 1,
   deliveryNotes: [],
   nextBL: 1,
+  company: { name: "Négoce", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20 },
+  charges: [],
+  returns: [],
 };
 
 export default function App() {
@@ -261,6 +264,7 @@ export default function App() {
     ...(session && session.role === "admin"
       ? [
           { id: "finance", label: "Comptabilité", icon: PiggyBank },
+          { id: "charges", label: "Charges", icon: Receipt2 },
           { id: "equipe", label: "Équipe", icon: UserCog },
           { id: "audit", label: "Journal d'audit", icon: ShieldCheck },
         ]
@@ -332,9 +336,9 @@ export default function App() {
       <main className="flex-1 p-5 md:p-10 max-w-6xl">
         {tab === "dashboard" && <Dashboard db={db} />}
         {tab === "rapports" && <Rapports db={db} />}
-        {tab === "devis" && <Devis db={db} persist={persist} notify={notify} log={log} />}
+        {tab === "devis" && <Devis db={db} persist={persist} notify={notify} log={log} session={session} />}
         {tab === "achats" && <Achats db={db} persist={persist} notify={notify} />}
-        {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} />}
+        {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} session={session} />}
         {tab === "livraison" && <Livraison db={db} persist={persist} notify={notify} log={log} />}
         {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} />}
         {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} />}
@@ -342,6 +346,7 @@ export default function App() {
         {tab === "cheques" && <Cheques db={db} persist={persist} notify={notify} log={log} />}
         {tab === "facturation" && <Facturation db={db} persist={persist} notify={notify} log={log} />}
         {tab === "finance" && session.role === "admin" && <Finance db={db} persist={persist} notify={notify} log={log} session={session} />}
+        {tab === "charges" && session.role === "admin" && <Charges db={db} persist={persist} notify={notify} log={log} />}
         {tab === "equipe" && session.role === "admin" && <Equipe session={session} notify={notify} log={log} />}
         {tab === "audit" && session.role === "admin" && <AuditLog session={session} />}
       </main>
@@ -488,14 +493,15 @@ function StatCard({ label, value, icon: Icon, tone = "default" }) {
 
 function Stamp({ status, labels }) {
   const paid = status === "paid";
-  const color = paid ? C.success : C.danger;
-  const text = labels ? (paid ? labels[0] : labels[1]) : paid ? "PAYÉ" : "EN ATTENTE";
+  const returned = status === "returned";
+  const color = returned ? C.inkSoft : paid ? C.success : C.danger;
+  const text = returned ? "RETOURNÉ" : labels ? (paid ? labels[0] : labels[1]) : paid ? "PAYÉ" : "EN ATTENTE";
   return (
     <span
       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2"
       style={{ ...monoFont, fontSize: 10, letterSpacing: "0.12em", color, borderColor: color, transform: "rotate(-2deg)" }}
     >
-      {paid ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+      {returned ? <RotateCcw size={11} /> : paid ? <CheckCircle2 size={11} /> : <Clock size={11} />}
       {text}
     </span>
   );
@@ -530,12 +536,13 @@ const inputClass = "w-full border rounded-md px-3 py-2 text-sm outline-none focu
 
 // ---------- Dashboard ----------
 function Dashboard({ db }) {
+  const activeSales = db.sales.filter((s) => !s.returned);
   const stockValue = db.products.reduce((s, p) => s + (p.costPrice || 0) * p.qty, 0);
   const rupture = db.products.filter((p) => p.qty <= 0);
   const lowStock = db.products.filter((p) => p.qty > 0 && p.qty <= p.minQty);
-  const revenue = db.sales.reduce((s, sale) => s + sale.total, 0);
+  const revenue = activeSales.reduce((s, sale) => s + sale.total, 0);
   const pendingInvoices = db.invoices.filter((i) => i.status === "pending");
-  const grossMargin = db.sales.reduce((s, sale) => {
+  const grossMargin = activeSales.reduce((s, sale) => {
     const saleMargin = (sale.items || []).reduce((sm, item) => {
       const prod = db.products.find((p) => p.id === item.productId);
       const cost = prod ? prod.costPrice || 0 : 0;
@@ -546,7 +553,7 @@ function Dashboard({ db }) {
 
   const trend = useMemo(() => {
     const map = {};
-    db.sales.forEach((s) => {
+    activeSales.forEach((s) => {
       map[s.date] = (map[s.date] || 0) + s.total;
     });
     return Object.entries(map)
@@ -557,7 +564,7 @@ function Dashboard({ db }) {
 
   const topProducts = useMemo(() => {
     const map = {};
-    db.sales.forEach((s) =>
+    activeSales.forEach((s) =>
       s.items.forEach((i) => {
         map[i.name] = (map[i.name] || 0) + i.qty * i.price;
       })
@@ -570,9 +577,20 @@ function Dashboard({ db }) {
 
   const byChannel = useMemo(() => {
     const map = {};
-    db.sales.forEach((s) => {
+    activeSales.forEach((s) => {
       const ch = s.channel || "Boutique";
       map[ch] = (map[ch] || 0) + s.total;
+    });
+    return Object.entries(map)
+      .map(([name, total]) => ({ name, total }))
+      .sort((a, b) => b.total - a.total);
+  }, [db.sales]);
+
+  const byVendor = useMemo(() => {
+    const map = {};
+    activeSales.forEach((s) => {
+      const v = s.soldBy || "—";
+      map[v] = (map[v] || 0) + s.total;
     });
     return Object.entries(map)
       .map(([name, total]) => ({ name, total }))
@@ -645,6 +663,26 @@ function Dashboard({ db }) {
         )}
       </div>
 
+      <div className="rounded-lg border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Ventes par vendeur</div>
+        {byVendor.length === 0 ? (
+          <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
+        ) : (
+          <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-3">
+            {byVendor.map((v) => {
+              const pct = revenue ? Math.round((v.total / revenue) * 100) : 0;
+              return (
+                <div key={v.name} className="rounded-md border p-3" style={{ borderColor: C.border }}>
+                  <div style={{ color: C.inkSoft }} className="text-xs mb-1">{v.name}</div>
+                  <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(v.total)} DHS</div>
+                  <div style={{ ...monoFont, color: C.accent, fontSize: 11 }}>{pct}%</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="grid md:grid-cols-2 gap-6">
         <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Alertes stock</div>
@@ -676,8 +714,10 @@ function Dashboard({ db }) {
             <ul className="space-y-2">
               {[...db.sales].reverse().slice(0, 5).map((s) => (
                 <li key={s.id} className="flex justify-between text-sm">
-                  <span style={{ color: C.ink }}>{s.client || "Client comptoir"}</span>
-                  <span style={monoFont}>{fmt(s.total)} DHS</span>
+                  <span style={{ color: s.returned ? C.inkSoft : C.ink, textDecoration: s.returned ? "line-through" : "none" }}>
+                    {s.client || "Client comptoir"}{s.returned ? " (retourné)" : ""}
+                  </span>
+                  <span style={{ ...monoFont, color: s.returned ? C.inkSoft : C.ink }}>{fmt(s.total)} DHS</span>
                 </li>
               ))}
             </ul>
@@ -706,7 +746,7 @@ function Rapports({ db }) {
 
   const grouped = useMemo(() => {
     const map = {};
-    db.sales.forEach((s) => {
+    db.sales.filter((s) => !s.returned).forEach((s) => {
       const key = view === "week" ? isoWeekKey(s.date) : monthKey(s.date);
       if (!map[key]) map[key] = { period: key, total: 0, count: 0, margin: 0 };
       map[key].total += s.total;
@@ -1157,7 +1197,7 @@ function Achats({ db, persist, notify }) {
 }
 
 // ---------- Ventes / PDV ----------
-function Ventes({ db, persist, notify }) {
+function Ventes({ db, persist, notify, session }) {
   const [cart, setCart] = useState([]);
   const [clientId, setClientId] = useState("");
   const [client, setClient] = useState("");
@@ -1195,6 +1235,9 @@ function Ventes({ db, persist, notify }) {
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountAmount = Math.min(subtotal, (subtotal * (Number(discount) || 0)) / 100);
   const total = subtotal - discountAmount;
+  const tvaRate = (db.company && db.company.tvaRate) || 0;
+  const totalHT = tvaRate ? total / (1 + tvaRate / 100) : total;
+  const tvaAmount = total - totalHT;
 
   const checkout = () => {
     if (cart.length === 0) return notify("Panier vide");
@@ -1216,18 +1259,25 @@ function Ventes({ db, persist, notify }) {
       );
     }
 
-    const sale = { id: uid(), date: today(), items: cart, total, discount: discountAmount, client: clientName, clientId, payment, channel };
+    const soldBy = session ? session.userName : "—";
+    const saleId = uid();
+    const sale = { id: saleId, date: today(), items: cart, total, totalHT, tvaAmount, tvaRate, discount: discountAmount, client: clientName, clientId, payment, channel, soldBy };
     const invoiceNumber = "NG-" + db.nextInvoice;
     const invoice = {
       id: uid(),
+      saleId,
       number: invoiceNumber,
       date: today(),
       client: clientName,
       clientId,
       total,
+      totalHT,
+      tvaAmount,
+      tvaRate,
       status: payment === "cash" ? "paid" : "pending",
       items: cart,
       channel,
+      soldBy,
     };
 
     persist({
@@ -1334,8 +1384,20 @@ function Ventes({ db, persist, notify }) {
               <span style={{ ...monoFont, color: C.danger }}>−{fmt(discountAmount)} DHS</span>
             </div>
           )}
+          {tvaRate > 0 && (
+            <>
+              <div className="flex justify-between text-sm">
+                <span style={{ color: C.inkSoft }}>Total HT</span>
+                <span style={monoFont}>{fmt(totalHT)} DHS</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span style={{ color: C.inkSoft }}>TVA ({tvaRate}%)</span>
+                <span style={monoFont}>{fmt(tvaAmount)} DHS</span>
+              </div>
+            </>
+          )}
           <div className="flex justify-between items-center my-4 pt-3 border-t" style={{ borderColor: C.border }}>
-            <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase">Total</span>
+            <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase">Total {tvaRate > 0 ? "TTC" : ""}</span>
             <span style={{ ...displayFont, color: C.ink }} className="text-2xl">{fmt(total)} DHS</span>
           </div>
           <button onClick={checkout} className="w-full py-2.5 rounded-md text-sm text-white flex items-center justify-center gap-2" style={{ background: C.accent }}>
@@ -1358,12 +1420,39 @@ function Facturation({ db, persist, notify, log }) {
     if (log && inv) log("mark_invoice_paid", "invoices", id, { number: inv.number, total: inv.total });
   };
 
+  const processReturn = (inv) => {
+    if (!confirm(`Traiter le retour complet de la facture ${inv.number} ? Les articles seront remis en stock.`)) return;
+    const sale = db.sales.find((s) => s.id === inv.saleId);
+    if (!sale) return notify("Vente d'origine introuvable, retour impossible");
+    if (sale.returned) return notify("Cette vente a déjà été retournée");
+
+    const products = db.products.map((p) => {
+      const item = (inv.items || []).find((i) => i.productId === p.id);
+      return item ? { ...p, qty: p.qty + item.qty } : p;
+    });
+    const clients = inv.clientId && inv.status === "pending"
+      ? db.clients.map((c) => (c.id === inv.clientId ? { ...c, balanceDue: Math.max(0, (c.balanceDue || 0) - inv.total) } : c))
+      : db.clients;
+    const ret = { id: uid(), date: today(), invoiceNumber: inv.number, client: inv.client, total: inv.total };
+
+    persist({
+      ...db,
+      products,
+      clients,
+      sales: db.sales.map((s) => (s.id === sale.id ? { ...s, returned: true } : s)),
+      invoices: db.invoices.map((i) => (i.id === inv.id ? { ...i, status: "returned" } : i)),
+      returns: [...(db.returns || []), ret],
+    });
+    if (log) log("process_return", "invoices", inv.id, { number: inv.number, total: inv.total });
+    notify(`Retour traité pour ${inv.number}, stock remis à jour`);
+  };
+
   const totalPending = db.invoices.filter((i) => i.status === "pending").reduce((s, i) => s + i.total, 0);
 
   const exportExcel = () => {
     const rows = db.invoices.map((inv) => ({
       Numéro: inv.number, Date: inv.date, Client: inv.client,
-      Total: inv.total, Statut: inv.status === "paid" ? "Payé" : "En attente",
+      Total: inv.total, Statut: inv.status === "paid" ? "Payé" : inv.status === "returned" ? "Retourné" : "En attente",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -1383,6 +1472,21 @@ function Facturation({ db, persist, notify, log }) {
         </tr>`
       )
       .join("");
+    const company = db.company || {};
+    const legalLine = [
+      company.ice ? `ICE: ${company.ice}` : "",
+      company.rc ? `RC: ${company.rc}` : "",
+      company.patente ? `Patente: ${company.patente}` : "",
+    ].filter(Boolean).join(" · ");
+    const tvaRows = inv.tvaRate
+      ? `
+        <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:13px;color:#5B6274;">
+          <span>Total HT</span><span>${fmt(inv.totalHT)} DHS</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:#5B6274;">
+          <span>TVA (${inv.tvaRate}%)</span><span>${fmt(inv.tvaAmount)} DHS</span>
+        </div>`
+      : "";
     const html = `
       <html>
         <head>
@@ -1391,25 +1495,29 @@ function Facturation({ db, persist, notify, log }) {
             body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 640px; margin: auto; }
             h1 { font-style: italic; margin-bottom: 0; }
             .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
+            .legal { color: #5B6274; font-size: 11px; margin-top: 4px; }
             table { width: 100%; border-collapse: collapse; margin-top: 24px; }
             th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
             th:nth-child(2) { text-align: center; }
             th:nth-child(3), th:nth-child(4) { text-align: right; }
             tr td { border-bottom: 1px solid #EEE; }
-            .total { text-align: right; margin-top: 20px; font-size: 22px; font-style: italic; }
-            .stamp { display: inline-block; margin-top: 6px; padding: 4px 12px; border: 2px solid ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; color: ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; border-radius: 999px; font-size: 11px; letter-spacing: 0.1em; transform: rotate(-2deg); }
+            .total { text-align: right; margin-top: 10px; font-size: 22px; font-style: italic; }
+            .stamp { display: inline-block; margin-top: 10px; padding: 4px 12px; border: 2px solid ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; color: ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; border-radius: 999px; font-size: 11px; letter-spacing: 0.1em; transform: rotate(-2deg); }
           </style>
         </head>
         <body>
-          <h1>Négoce</h1>
-          <div class="muted">Facture ${inv.number}</div>
-          <p>Client : ${inv.client}<br/>Date : ${inv.date}</p>
+          <h1>${company.name || "Négoce"}</h1>
+          ${company.address || company.phone ? `<div class="legal">${[company.address, company.phone].filter(Boolean).join(" · ")}</div>` : ""}
+          ${legalLine ? `<div class="legal">${legalLine}</div>` : ""}
+          <div class="muted" style="margin-top:12px;">Facture ${inv.number}</div>
+          <p>Client : ${inv.client}<br/>Date : ${inv.date}${inv.soldBy ? `<br/>Vendu par : ${inv.soldBy}` : ""}</p>
           <table>
             <thead><tr><th>Article</th><th>Qté</th><th>Prix</th><th>Total</th></tr></thead>
             <tbody>${rowsHtml}</tbody>
           </table>
-          <div class="total">Total : ${fmt(inv.total)} DHS</div>
-          <div class="stamp">${inv.status === "paid" ? "PAYÉ" : "EN ATTENTE"}</div>
+          ${tvaRows}
+          <div class="total">Total ${inv.tvaRate ? "TTC" : ""} : ${fmt(inv.total)} DHS</div>
+          <div class="stamp">${inv.status === "paid" ? "PAYÉ" : inv.status === "returned" ? "RETOURNÉ" : "EN ATTENTE"}</div>
         </body>
       </html>`;
     const w = window.open("", "_blank");
@@ -1441,9 +1549,9 @@ function Facturation({ db, persist, notify, log }) {
           <div key={inv.id} className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
             <div>
               <div style={monoFont} className="text-sm">{inv.number}</div>
-              <div style={{ color: C.inkSoft }} className="text-xs">{inv.client} · {inv.date}</div>
+              <div style={{ color: C.inkSoft }} className="text-xs">{inv.client} · {inv.date}{inv.soldBy ? ` · ${inv.soldBy}` : ""}</div>
             </div>
-            <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(inv.total)} DHS</div>
+            <div style={{ ...displayFont, color: inv.status === "returned" ? C.inkSoft : C.ink }} className="text-lg">{fmt(inv.total)} DHS</div>
             <Stamp status={inv.status} />
             <div className="flex gap-2">
               <button onClick={() => printInvoice(inv)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
@@ -1452,6 +1560,11 @@ function Facturation({ db, persist, notify, log }) {
               {inv.status === "pending" && (
                 <button onClick={() => markPaid(inv.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
                   Marquer payée
+                </button>
+              )}
+              {inv.status !== "returned" && (
+                <button onClick={() => processReturn(inv)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.danger, color: C.danger }}>
+                  <RotateCcw size={12} /> Retour
                 </button>
               )}
             </div>
@@ -1749,7 +1862,7 @@ function Cheques({ db, persist, notify, log }) {
 }
 
 // ---------- Devis ----------
-function Devis({ db, persist, notify, log }) {
+function Devis({ db, persist, notify, log, session }) {
   const [cart, setCart] = useState([]);
   const [clientId, setClientId] = useState("");
   const [client, setClient] = useState("");
@@ -1785,9 +1898,11 @@ function Devis({ db, persist, notify, log }) {
       const item = q.items.find((i) => i.productId === p.id);
       return item ? { ...p, qty: p.qty - item.qty } : p;
     });
-    const sale = { id: uid(), date: today(), items: q.items, total: q.total, discount: 0, client: q.client, clientId: q.clientId, payment: "cash" };
+    const soldBy = session ? session.userName : "—";
+    const saleId = uid();
+    const sale = { id: saleId, date: today(), items: q.items, total: q.total, discount: 0, client: q.client, clientId: q.clientId, payment: "cash", soldBy };
     const invoiceNumber = "NG-" + db.nextInvoice;
-    const invoice = { id: uid(), number: invoiceNumber, date: today(), client: q.client, clientId: q.clientId, total: q.total, status: "paid", items: q.items };
+    const invoice = { id: uid(), saleId, number: invoiceNumber, date: today(), client: q.client, clientId: q.clientId, total: q.total, status: "paid", items: q.items, soldBy };
     persist({
       ...db,
       products,
@@ -2051,11 +2166,123 @@ function Equipe({ session, notify, log }) {
   );
 }
 
+// ---------- Charges ----------
+function Charges({ db, persist, notify, log }) {
+  const [form, setForm] = useState({ label: "", category: "Loyer", amount: "", date: today() });
+
+  const categories = ["Loyer", "Électricité / Eau", "Salaires", "Transport", "Marketing", "Internet / Téléphone", "Autre"];
+
+  const addCharge = () => {
+    if (!form.label || !form.amount) return notify("Description et montant requis");
+    const charge = { id: uid(), date: form.date, label: form.label, category: form.category, amount: Number(form.amount) };
+    persist({ ...db, charges: [...(db.charges || []), charge] });
+    if (log) log("create_charge", "charges", charge.id, { label: charge.label, amount: charge.amount });
+    setForm({ label: "", category: "Loyer", amount: "", date: today() });
+    notify("Charge enregistrée");
+  };
+
+  const removeCharge = (id) => {
+    const c = (db.charges || []).find((x) => x.id === id);
+    const prevDb = db;
+    persist({ ...db, charges: db.charges.filter((c) => c.id !== id) });
+    if (log && c) log("delete_charge", "charges", id, { label: c.label });
+    if (c) notify(`Charge "${c.label}" supprimée`, () => persist(prevDb));
+  };
+
+  const total = (db.charges || []).reduce((s, c) => s + c.amount, 0);
+  const byCategory = useMemo(() => {
+    const map = {};
+    (db.charges || []).forEach((c) => { map[c.category] = (map[c.category] || 0) + c.amount; });
+    return Object.entries(map).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
+  }, [db.charges]);
+
+  return (
+    <div>
+      <SectionTitle
+        eyebrow="Dépenses"
+        title="Charges"
+        action={
+          <div className="text-right">
+            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Total des charges</div>
+            <div style={{ ...displayFont, color: C.danger }} className="text-xl">{fmt(total)} DHS</div>
+          </div>
+        }
+      />
+
+      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvelle charge</div>
+        <div className="grid md:grid-cols-4 gap-3">
+          <Field label="Description">
+            <input className={inputClass} style={inputStyle} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Ex. Loyer du mois" />
+          </Field>
+          <Field label="Catégorie">
+            <select className={inputClass} style={inputStyle} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+          <Field label="Montant (DHS)">
+            <input type="number" className={inputClass} style={inputStyle} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
+          </Field>
+          <Field label="Date">
+            <input type="date" className={inputClass} style={inputStyle} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+          </Field>
+        </div>
+        <button onClick={addCharge} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
+          <Plus size={14} /> Ajouter la charge
+        </button>
+      </div>
+
+      {byCategory.length > 0 && (
+        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          {byCategory.map((c) => (
+            <div key={c.name} className="rounded-md border p-3" style={{ borderColor: C.border, background: "#fff" }}>
+              <div style={{ color: C.inkSoft }} className="text-xs mb-1">{c.name}</div>
+              <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(c.total)} DHS</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Description</td><td className="px-4 py-3">Catégorie</td>
+              <td className="px-4 py-3">Montant</td><td className="px-4 py-3"></td>
+            </tr>
+          </thead>
+          <tbody>
+            {[...(db.charges || [])].reverse().map((c) => (
+              <tr key={c.id} className="border-b" style={{ borderColor: C.border }}>
+                <td className="px-4 py-3" style={monoFont}>{c.date}</td>
+                <td className="px-4 py-3" style={{ color: C.ink }}>{c.label}</td>
+                <td className="px-4 py-3" style={{ color: C.inkSoft }}>{c.category}</td>
+                <td className="px-4 py-3" style={monoFont}>{fmt(c.amount)} DHS</td>
+                <td className="px-4 py-3 text-right"><button onClick={() => removeCharge(c.id)}><Trash2 size={14} color={C.danger} /></button></td>
+              </tr>
+            ))}
+            {(!db.charges || db.charges.length === 0) && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune charge enregistrée.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // ---------- Finance / Comptabilité ----------
 function Finance({ db, persist, notify, log, session }) {
   const [capitalInput, setCapitalInput] = useState(String(db.capital || 0));
   const [backups, setBackups] = useState([]);
   const [backupsLoading, setBackupsLoading] = useState(true);
+  const [company, setCompany] = useState(db.company || { name: "", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20 });
+
+  const saveCompany = () => {
+    persist({ ...db, company });
+    if (log) log("update_company", "settings", "company", {});
+    notify("Informations de l'entreprise mises à jour");
+  };
 
   useEffect(() => {
     (async () => {
@@ -2087,17 +2314,18 @@ function Finance({ db, persist, notify, log, session }) {
     notify("Capital initial mis à jour");
   };
 
-  const totalRevenue = db.sales.reduce((s, x) => s + x.total, 0);
+  const totalRevenue = db.sales.filter((x) => !x.returned).reduce((s, x) => s + x.total, 0);
   const totalCosts = db.purchases.reduce((s, x) => s + x.total, 0);
+  const totalCharges = (db.charges || []).reduce((s, x) => s + x.amount, 0);
   const stockValue = db.products.reduce((s, p) => s + p.price * p.qty, 0); // valeur au prix de vente
   const stockValueAtCost = db.products.reduce((s, p) => s + (p.costPrice || 0) * p.qty, 0); // valeur au coût d'achat
-  const cashProfit = totalRevenue - totalCosts; // bénéfice "caisse" : ce qui est déjà encaissé moins tout ce qui a été acheté
+  const cashProfit = totalRevenue - totalCosts - totalCharges; // bénéfice réel : ventes moins achats moins charges (loyer, salaires...)
   const currentCapital = (db.capital || 0) + cashProfit + stockValueAtCost; // patrimoine total : capital de départ + bénéfice encaissé + valeur de la marchandise encore en stock (au coût)
 
   // group by year
   const years = useMemo(() => {
     const map = {};
-    db.sales.forEach((s) => {
+    db.sales.filter((s) => !s.returned).forEach((s) => {
       const y = s.date.slice(0, 4);
       map[y] = map[y] || { revenue: 0, costs: 0 };
       map[y].revenue += s.total;
@@ -2115,6 +2343,41 @@ function Finance({ db, persist, notify, log, session }) {
   return (
     <div>
       <SectionTitle eyebrow="Finances" title="Comptabilité & capital" />
+
+      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4 flex items-center gap-2">
+          <Settings size={14} /> Informations de l'entreprise (facture)
+        </div>
+        <div className="grid md:grid-cols-3 gap-3">
+          <Field label="Nom de l'entreprise">
+            <input className={inputClass} style={inputStyle} value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} />
+          </Field>
+          <Field label="ICE">
+            <input className={inputClass} style={inputStyle} value={company.ice} onChange={(e) => setCompany({ ...company, ice: e.target.value })} />
+          </Field>
+          <Field label="RC">
+            <input className={inputClass} style={inputStyle} value={company.rc} onChange={(e) => setCompany({ ...company, rc: e.target.value })} />
+          </Field>
+          <Field label="Patente">
+            <input className={inputClass} style={inputStyle} value={company.patente} onChange={(e) => setCompany({ ...company, patente: e.target.value })} />
+          </Field>
+          <Field label="Téléphone">
+            <input className={inputClass} style={inputStyle} value={company.phone} onChange={(e) => setCompany({ ...company, phone: e.target.value })} />
+          </Field>
+          <Field label="Taux de TVA (%)">
+            <input type="number" className={inputClass} style={inputStyle} value={company.tvaRate} onChange={(e) => setCompany({ ...company, tvaRate: Number(e.target.value) })} />
+          </Field>
+          <Field label="Adresse">
+            <input className={inputClass} style={inputStyle} value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} />
+          </Field>
+        </div>
+        <button onClick={saveCompany} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
+          <Save size={14} /> Enregistrer
+        </button>
+        <p className="text-xs mt-3" style={{ color: C.inkSoft }}>
+          Ces informations apparaissent sur les factures imprimées. Mettez 0 dans "Taux de TVA" si vous ne facturez pas la TVA.
+        </p>
+      </div>
 
       <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
@@ -2139,9 +2402,10 @@ function Finance({ db, persist, notify, log, session }) {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
         <StatCard label="Capital initial" value={fmt(db.capital || 0) + " DHS"} icon={Wallet} />
-        <StatCard label="Bénéfice encaissé" value={fmt(cashProfit) + " DHS"} icon={TrendingUp} tone={cashProfit >= 0 ? "success" : "danger"} />
+        <StatCard label="Charges" value={fmt(totalCharges) + " DHS"} icon={Receipt} tone={totalCharges > 0 ? "danger" : "default"} />
+        <StatCard label="Bénéfice net (après charges)" value={fmt(cashProfit) + " DHS"} icon={TrendingUp} tone={cashProfit >= 0 ? "success" : "danger"} />
         <StatCard label="Stock (au coût)" value={fmt(stockValueAtCost) + " DHS"} icon={Boxes} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
@@ -2149,7 +2413,7 @@ function Finance({ db, persist, notify, log, session }) {
         <StatCard label="Stock (valeur de revente)" value={fmt(stockValue) + " DHS"} icon={Boxes} />
       </div>
       <p className="text-xs -mt-5 mb-8" style={{ color: C.inkSoft }}>
-        Capital actuel = Capital initial + Bénéfice encaissé + Valeur de la marchandise encore en stock (comptée au coût d'achat, pas au prix de vente, car elle n'est pas encore vendue).
+        Bénéfice net = Ventes − Achats − Charges (loyer, salaires, etc.). Capital actuel = Capital initial + Bénéfice net + Valeur du stock encore en magasin (au coût d'achat).
       </p>
 
       <div className="grid md:grid-cols-2 gap-4 mb-8">
