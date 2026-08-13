@@ -4,7 +4,7 @@ import {
   Plus, Trash2, X, Search, TrendingUp, AlertTriangle,
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
-  FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings
+  FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -877,9 +877,51 @@ function Rapports({ db }) {
 function Stock({ db, persist, notify, log }) {
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5" });
   const [q, setQ] = useState("");
+  const [editingId, setEditingId] = useState(null);
+
+  const startEdit = (p) => {
+    setEditingId(p.id);
+    setForm({
+      name: p.name,
+      sku: p.sku,
+      barcode: p.barcode || "",
+      category: p.category,
+      price: String(p.price),
+      costPrice: String(p.costPrice || 0),
+      qty: String(p.qty),
+      minQty: String(p.minQty),
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5" });
+  };
 
   const addProduct = () => {
     if (!form.name || !form.price) return notify("Nom et prix requis");
+
+    if (editingId) {
+      const before = db.products.find((p) => p.id === editingId);
+      const updated = {
+        ...before,
+        name: form.name,
+        sku: form.sku || before.sku,
+        barcode: form.barcode || before.barcode,
+        category: form.category || "Général",
+        price: Number(form.price),
+        costPrice: Number(form.costPrice) || 0,
+        qty: Number(form.qty) || 0,
+        minQty: Number(form.minQty) || 0,
+      };
+      persist({ ...db, products: db.products.map((p) => (p.id === editingId ? updated : p)) });
+      if (log) log("update_product", "products", editingId, { name: updated.name });
+      cancelEdit();
+      notify("Produit modifié");
+      return;
+    }
+
     const p = {
       id: uid(),
       name: form.name,
@@ -938,11 +980,20 @@ function Stock({ db, persist, notify, log }) {
 
   return (
     <div>
-      <SectionTitle eyebrow="Catalogue" title="Stock & produits" />
+      <SectionTitle
+        eyebrow="Catalogue"
+        title="Stock & produits"
+        action={
+          <div className="text-right">
+            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Produits référencés</div>
+            <div style={{ ...displayFont, color: C.ink }} className="text-xl">{db.products.length}</div>
+          </div>
+        }
+      />
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: editingId ? C.accent : C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
-          Nouveau produit
+          {editingId ? "Modifier le produit" : "Nouveau produit"}
         </div>
         <div className="grid md:grid-cols-8 gap-3">
           <Field label="Nom">
@@ -970,9 +1021,16 @@ function Stock({ db, persist, notify, log }) {
             <input type="number" className={inputClass} style={inputStyle} value={form.minQty} onChange={(e) => setForm({ ...form, minQty: e.target.value })} />
           </Field>
         </div>
-        <button onClick={addProduct} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Plus size={14} /> Ajouter au catalogue
-        </button>
+        <div className="flex gap-3 mt-4">
+          <button onClick={addProduct} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
+            {editingId ? <Save size={14} /> : <Plus size={14} />} {editingId ? "Enregistrer les modifications" : "Ajouter au catalogue"}
+          </button>
+          {editingId && (
+            <button onClick={cancelEdit} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.inkSoft }}>
+              Annuler
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
@@ -1051,6 +1109,7 @@ function Stock({ db, persist, notify, log }) {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center gap-2 justify-end">
+                      <button onClick={() => startEdit(p)} title="Modifier"><Pencil size={14} color={C.accent} /></button>
                       <button onClick={() => printLabel(p)} title="Imprimer l'étiquette"><Printer size={14} color={C.inkSoft} /></button>
                       <button onClick={() => removeProduct(p.id)}><Trash2 size={14} color={C.danger} /></button>
                     </div>
