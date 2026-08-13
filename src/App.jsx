@@ -1713,6 +1713,7 @@ function Clients({ db, persist, notify, log }) {
 function Fournisseurs({ db, persist, notify, log }) {
   const [form, setForm] = useState({ name: "", phone: "" });
   const [payForm, setPayForm] = useState({ supplierId: "", amount: "" });
+  const [debtForm, setDebtForm] = useState({ supplierId: "", amount: "", note: "" });
 
   const addSupplier = () => {
     if (!form.name) return notify("Nom requis");
@@ -1727,6 +1728,19 @@ function Fournisseurs({ db, persist, notify, log }) {
     persist({ ...db, suppliers: db.suppliers.filter((s) => s.id !== id) });
     if (log && s) log("delete_supplier", "suppliers", id, { name: s.name });
     if (s) notify(`Fournisseur "${s.name}" supprimé`, () => persist(prevDb));
+  };
+
+  const addExistingDebt = () => {
+    const supplier = db.suppliers.find((s) => s.id === debtForm.supplierId);
+    const amount = Number(debtForm.amount);
+    if (!supplier || !amount || amount <= 0) return notify("Fournisseur et montant requis");
+    const suppliers = db.suppliers.map((s) =>
+      s.id === supplier.id ? { ...s, balanceDue: (s.balanceDue || 0) + amount } : s
+    );
+    persist({ ...db, suppliers }); // ne touche ni au stock, ni aux achats — juste le solde dû
+    if (log) log("add_opening_debt", "suppliers", supplier.id, { name: supplier.name, amount, note: debtForm.note });
+    setDebtForm({ supplierId: "", amount: "", note: "" });
+    notify(`Dette de ${fmt(amount)} DHS ajoutée pour ${supplier.name}`);
   };
 
   const recordPayment = () => {
@@ -1766,6 +1780,30 @@ function Fournisseurs({ db, persist, notify, log }) {
         </div>
         <button onClick={addSupplier} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
           <Plus size={14} /> Ajouter le fournisseur
+        </button>
+      </div>
+
+      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dette déjà existante (solde de départ)</div>
+        <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+          Pour enregistrer un montant que vous devez déjà à un fournisseur (avant d'utiliser cette application). Cela n'affecte ni le stock ni les achats — uniquement le solde dû.
+        </p>
+        <div className="grid md:grid-cols-3 gap-3">
+          <Field label="Fournisseur">
+            <select className={inputClass} style={inputStyle} value={debtForm.supplierId} onChange={(e) => setDebtForm({ ...debtForm, supplierId: e.target.value })}>
+              <option value="">— Choisir —</option>
+              {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Montant dû (DHS)">
+            <input type="number" className={inputClass} style={inputStyle} value={debtForm.amount} onChange={(e) => setDebtForm({ ...debtForm, amount: e.target.value })} />
+          </Field>
+          <Field label="Note (optionnel)">
+            <input className={inputClass} style={inputStyle} value={debtForm.note} onChange={(e) => setDebtForm({ ...debtForm, note: e.target.value })} placeholder="Ex. solde avant l'application" />
+          </Field>
+        </div>
+        <button onClick={addExistingDebt} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
+          <Plus size={14} /> Ajouter cette dette
         </button>
       </div>
 
