@@ -46,39 +46,6 @@ function uidBarcode() {
 }
 
 const uid = () => Math.random().toString(36).slice(2, 10);
-
-// ---- Variant-aware stock helpers ----
-function productQty(p) {
-  return p.variants && p.variants.length > 0
-    ? p.variants.reduce((s, v) => s + (v.qty || 0), 0)
-    : p.qty || 0;
-}
-function variantLabel(v) {
-  return [v.color, v.size, v.length].filter(Boolean).join(" / ");
-}
-function findByCode(products, code) {
-  for (const p of products) {
-    if (p.barcode === code || p.sku === code) return { product: p, variant: null };
-    if (p.variants) {
-      const v = p.variants.find((x) => x.barcode === code || x.sku === code);
-      if (v) return { product: p, variant: v };
-    }
-  }
-  return null;
-}
-function adjustStock(products, productId, variantId, delta) {
-  return products.map((p) => {
-    if (p.id !== productId) return p;
-    if (variantId && p.variants) {
-      const variants = p.variants.map((v) =>
-        v.id === variantId ? { ...v, qty: Math.max(0, (v.qty || 0) + delta) } : v
-      );
-      return { ...p, variants, qty: variants.reduce((s, v) => s + (v.qty || 0), 0) };
-    }
-    return { ...p, qty: Math.max(0, (p.qty || 0) + delta) };
-  });
-}
-
 const fmt = (n) =>
   (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const today = () => new Date().toISOString().slice(0, 10);
@@ -570,9 +537,9 @@ const inputClass = "w-full border rounded-md px-3 py-2 text-sm outline-none focu
 // ---------- Dashboard ----------
 function Dashboard({ db }) {
   const activeSales = db.sales.filter((s) => !s.returned);
-  const stockValue = db.products.reduce((s, p) => s + (p.costPrice || 0) * productQty(p), 0);
-  const rupture = db.products.filter((p) => productQty(p) <= 0);
-  const lowStock = db.products.filter((p) => productQty(p) > 0 && productQty(p) <= p.minQty);
+  const stockValue = db.products.reduce((s, p) => s + (p.costPrice || 0) * p.qty, 0);
+  const rupture = db.products.filter((p) => p.qty <= 0);
+  const lowStock = db.products.filter((p) => p.qty > 0 && p.qty <= p.minQty);
   const revenue = activeSales.reduce((s, sale) => s + sale.total, 0);
   const pendingInvoices = db.invoices.filter((i) => i.status === "pending");
   const grossMargin = activeSales.reduce((s, sale) => {
@@ -911,8 +878,6 @@ function Stock({ db, persist, notify, log }) {
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5" });
   const [q, setQ] = useState("");
   const [editingId, setEditingId] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
-  const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "" });
 
   const startEdit = (p) => {
     setEditingId(p.id);
@@ -947,7 +912,7 @@ function Stock({ db, persist, notify, log }) {
         category: form.category || "Général",
         price: Number(form.price),
         costPrice: Number(form.costPrice) || 0,
-        qty: before.variants && before.variants.length > 0 ? before.qty : Number(form.qty) || 0,
+        qty: Number(form.qty) || 0,
         minQty: Number(form.minQty) || 0,
       };
       persist({ ...db, products: db.products.map((p) => (p.id === editingId ? updated : p)) });
@@ -967,75 +932,30 @@ function Stock({ db, persist, notify, log }) {
       costPrice: Number(form.costPrice) || 0,
       qty: Number(form.qty) || 0,
       minQty: Number(form.minQty) || 0,
-      variants: [],
     };
     persist({ ...db, products: [...db.products, p] });
     setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5" });
     notify("Produit ajouté");
   };
 
-  const addVariant = (product) => {
-    if (!variantForm.color && !variantForm.size && !variantForm.length) {
-      return notify("Renseignez au moins une couleur, taille ou longueur");
-    }
-    const v = {
-      id: uid(),
-      color: variantForm.color,
-      size: variantForm.size,
-      length: variantForm.length,
-      sku: product.sku + "-" + uid().toUpperCase().slice(0, 4),
-      barcode: uidBarcode(),
-      qty: Number(variantForm.qty) || 0,
-    };
-    const variants = [...(product.variants || []), v];
-    const products = db.products.map((p) =>
-      p.id === product.id ? { ...p, variants, qty: variants.reduce((s, x) => s + (x.qty || 0), 0) } : p
-    );
-    persist({ ...db, products });
-    if (log) log("add_variant", "products", product.id, { product: product.name, variant: variantLabel(v) });
-    setVariantForm({ color: "", size: "", length: "", qty: "" });
-    notify("Variante ajoutée");
-  };
-
-  const removeVariant = (product, variantId) => {
-    const variants = (product.variants || []).filter((v) => v.id !== variantId);
-    const products = db.products.map((p) =>
-      p.id === product.id ? { ...p, variants, qty: variants.reduce((s, x) => s + (x.qty || 0), 0) } : p
-    );
-    persist({ ...db, products });
-    if (log) log("delete_variant", "products", product.id, { product: product.name });
-  };
-
-  const updateVariantQty = (product, variantId, delta) => {
-    const variants = (product.variants || []).map((v) =>
-      v.id === variantId ? { ...v, qty: Math.max(0, (v.qty || 0) + delta) } : v
-    );
-    const products = db.products.map((p) =>
-      p.id === product.id ? { ...p, variants, qty: variants.reduce((s, x) => s + (x.qty || 0), 0) } : p
-    );
-    persist({ ...db, products });
-  };
-
-  const printLabel = (p, variant) => {
-    const label = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
-    const barcode = variant ? variant.barcode : p.barcode;
+  const printLabel = (p) => {
     const w = window.open("", "_blank", "width=420,height=320");
     w.document.write(`
-      <html><head><title>Étiquette ${variant ? variant.sku : p.sku}</title>
+      <html><head><title>Étiquette ${p.sku}</title>
       <style>
         body { font-family: Inter, sans-serif; text-align: center; padding: 16px; }
         h3 { margin: 4px 0; }
         .price { font-size: 20px; font-weight: bold; margin-top: 4px; }
       </style></head>
       <body>
-        <h3>${label}</h3>
+        <h3>${p.name}</h3>
         <svg id="bc"></svg>
         <div class="price">${fmt(p.price)} DHS</div>
       </body></html>
     `);
     w.document.close();
     w.onload = () => {
-      JsBarcode(w.document.getElementById("bc"), barcode, { format: "EAN13", width: 2, height: 60, fontSize: 14 });
+      JsBarcode(w.document.getElementById("bc"), p.barcode, { format: "EAN13", width: 2, height: 60, fontSize: 14 });
       setTimeout(() => w.print(), 200);
     };
   };
@@ -1095,14 +1015,7 @@ function Stock({ db, persist, notify, log }) {
             <input type="number" className={inputClass} style={inputStyle} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
           </Field>
           <Field label="Quantité">
-            <input
-              type="number"
-              className={inputClass}
-              style={inputStyle}
-              value={form.qty}
-              disabled={editingId ? (db.products.find((p) => p.id === editingId)?.variants || []).length > 0 : false}
-              onChange={(e) => setForm({ ...form, qty: e.target.value })}
-            />
+            <input type="number" className={inputClass} style={inputStyle} value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} />
           </Field>
           <Field label="Seuil min.">
             <input type="number" className={inputClass} style={inputStyle} value={form.minQty} onChange={(e) => setForm({ ...form, minQty: e.target.value })} />
@@ -1127,27 +1040,21 @@ function Stock({ db, persist, notify, log }) {
         </div>
         <button
           onClick={() => {
-            const rows = [];
-            db.products.forEach((p) => {
-              if (p.variants && p.variants.length > 0) {
-                p.variants.forEach((v) => {
-                  rows.push({
-                    Produit: p.name, Variante: variantLabel(v), SKU: v.sku, "Code-barres": v.barcode,
-                    Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
-                    Quantité: v.qty, "Seuil min.": p.minQty,
-                    Statut: v.qty <= 0 ? "Rupture" : v.qty <= p.minQty ? "Stock bas" : "OK",
-                  });
-                });
-              } else {
-                rows.push({
-                  Produit: p.name, Variante: "", SKU: p.sku, "Code-barres": p.barcode || "",
-                  Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
-                  Quantité: p.qty, "Seuil min.": p.minQty,
-                  Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
-                });
-              }
-            });
-            const ws = XLSX.utils.json_to_sheet(rows);
+            const ws = XLSX.utils.json_to_sheet(db.products.map((p) => ({
+              Produit: p.name,
+              SKU: p.sku,
+              "Code-barres": p.barcode || "",
+              Catégorie: p.category,
+              "Coût d'achat": p.costPrice || 0,
+              "Prix de vente": p.price,
+              "Marge (DHS)": p.price - (p.costPrice || 0),
+              "Marge (%)": p.price ? Math.round(((p.price - (p.costPrice || 0)) / p.price) * 100) : 0,
+              Quantité: p.qty,
+              "Seuil min.": p.minQty,
+              "Valeur stock (coût)": (p.costPrice || 0) * p.qty,
+              "Valeur stock (vente)": p.price * p.qty,
+              Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
+            })));
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Stock");
             XLSX.writeFile(wb, `stock-complet-${today()}.xlsx`);
@@ -1176,115 +1083,38 @@ function Stock({ db, persist, notify, log }) {
           </thead>
           <tbody>
             {filtered.map((p) => {
-              const hasVariants = p.variants && p.variants.length > 0;
-              const qty = productQty(p);
               const margin = p.price - (p.costPrice || 0);
               const marginPct = p.price ? Math.round((margin / p.price) * 100) : 0;
-              const rupture = qty <= 0;
-              const low = !rupture && qty <= p.minQty;
-              const expanded = expandedId === p.id;
+              const rupture = p.qty <= 0;
+              const low = !rupture && p.qty <= p.minQty;
               return (
-                <React.Fragment key={p.id}>
-                  <tr className="border-b" style={{ borderColor: C.border }}>
-                    <td className="px-4 py-3" style={{ color: C.ink }}>
-                      {p.name}
-                      {hasVariants && (
-                        <button
-                          onClick={() => setExpandedId(expanded ? null : p.id)}
-                          className="ml-2 text-[10px] px-1.5 py-0.5 rounded"
-                          style={{ background: C.accentSoft, color: C.accent }}
-                        >
-                          {p.variants.length} variante{p.variants.length > 1 ? "s" : ""} {expanded ? "▲" : "▼"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div style={monoFont}>{p.sku}</div>
-                      <div style={{ ...monoFont, color: C.inkSoft, fontSize: 10 }}>{p.barcode}</div>
-                    </td>
-                    <td className="px-4 py-3" style={{ color: C.inkSoft }}>{p.category}</td>
-                    <td className="px-4 py-3" style={{ ...monoFont, color: C.inkSoft }}>{fmt(p.costPrice || 0)} DHS</td>
-                    <td className="px-4 py-3" style={monoFont}>{fmt(p.price)} DHS</td>
-                    <td className="px-4 py-3" style={{ ...monoFont, color: margin >= 0 ? C.success : C.danger }}>{fmt(margin)} DHS · {marginPct}%</td>
-                    <td className="px-4 py-3">
-                      {hasVariants ? (
-                        <div className="flex items-center gap-2">
-                          <span style={{ ...monoFont, color: rupture ? C.danger : low ? "#B4813A" : C.ink }}>{qty} (total)</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => updateQty(p.id, -1)} className="w-6 h-6 rounded border flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={12} /></button>
-                          <span style={{ ...monoFont, color: rupture ? C.danger : low ? "#B4813A" : C.ink }}>{qty}</span>
-                          <button onClick={() => updateQty(p.id, 1)} className="w-6 h-6 rounded border flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={12} /></button>
-                        </div>
-                      )}
-                      {rupture && <span className="text-[10px] px-1.5 py-0.5 rounded mt-1 inline-block" style={{ background: C.dangerSoft, color: C.danger }}>RUPTURE</span>}
-                      {low && <span className="text-[10px] px-1.5 py-0.5 rounded mt-1 inline-block" style={{ background: "#F5E7D3", color: "#B4813A" }}>BAS</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => setExpandedId(expanded ? null : p.id)} title="Variantes"><Layers size={14} color={C.accent} /></button>
-                        <button onClick={() => startEdit(p)} title="Modifier"><Pencil size={14} color={C.accent} /></button>
-                        <button onClick={() => printLabel(p)} title="Imprimer l'étiquette"><Printer size={14} color={C.inkSoft} /></button>
-                        <button onClick={() => removeProduct(p.id)}><Trash2 size={14} color={C.danger} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                  {expanded && (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-4" style={{ background: C.paper }}>
-                        <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-3">
-                          Variantes de "{p.name}" (couleur / taille / longueur)
-                        </div>
-                        {hasVariants && (
-                          <table className="w-full text-sm mb-4">
-                            <tbody>
-                              {p.variants.map((v) => {
-                                const vRupture = (v.qty || 0) <= 0;
-                                return (
-                                  <tr key={v.id} className="border-b" style={{ borderColor: C.border }}>
-                                    <td className="py-2" style={{ color: C.ink }}>{variantLabel(v) || "—"}</td>
-                                    <td className="py-2" style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{v.sku}</td>
-                                    <td className="py-2">
-                                      <div className="flex items-center gap-2">
-                                        <button onClick={() => updateVariantQty(p, v.id, -1)} className="w-6 h-6 rounded border flex items-center justify-center bg-white" style={{ borderColor: C.border }}><Minus size={12} /></button>
-                                        <span style={{ ...monoFont, color: vRupture ? C.danger : C.ink }}>{v.qty}</span>
-                                        <button onClick={() => updateVariantQty(p, v.id, 1)} className="w-6 h-6 rounded border flex items-center justify-center bg-white" style={{ borderColor: C.border }}><Plus size={12} /></button>
-                                      </div>
-                                    </td>
-                                    <td className="py-2 text-right">
-                                      <div className="flex items-center gap-2 justify-end">
-                                        <button onClick={() => printLabel(p, v)} title="Imprimer l'étiquette"><Printer size={13} color={C.inkSoft} /></button>
-                                        <button onClick={() => removeVariant(p, v.id)}><Trash2 size={13} color={C.danger} /></button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        )}
-                        <div className="grid md:grid-cols-5 gap-3 items-end">
-                          <Field label="Couleur">
-                            <input className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.color} onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })} placeholder="Ex. Noir" />
-                          </Field>
-                          <Field label="Taille">
-                            <input className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.size} onChange={(e) => setVariantForm({ ...variantForm, size: e.target.value })} placeholder="Ex. M" />
-                          </Field>
-                          <Field label="Longueur">
-                            <input className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.length} onChange={(e) => setVariantForm({ ...variantForm, length: e.target.value })} placeholder="Ex. 1m" />
-                          </Field>
-                          <Field label="Quantité">
-                            <input type="number" className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.qty} onChange={(e) => setVariantForm({ ...variantForm, qty: e.target.value })} />
-                          </Field>
-                          <button onClick={() => addVariant(p)} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
-                            <Plus size={14} /> Ajouter
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
+                <tr key={p.id} className="border-b" style={{ borderColor: C.border }}>
+                  <td className="px-4 py-3" style={{ color: C.ink }}>{p.name}</td>
+                  <td className="px-4 py-3">
+                    <div style={monoFont}>{p.sku}</div>
+                    <div style={{ ...monoFont, color: C.inkSoft, fontSize: 10 }}>{p.barcode}</div>
+                  </td>
+                  <td className="px-4 py-3" style={{ color: C.inkSoft }}>{p.category}</td>
+                  <td className="px-4 py-3" style={{ ...monoFont, color: C.inkSoft }}>{fmt(p.costPrice || 0)} DHS</td>
+                  <td className="px-4 py-3" style={monoFont}>{fmt(p.price)} DHS</td>
+                  <td className="px-4 py-3" style={{ ...monoFont, color: margin >= 0 ? C.success : C.danger }}>{fmt(margin)} DHS · {marginPct}%</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => updateQty(p.id, -1)} className="w-6 h-6 rounded border flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={12} /></button>
+                      <span style={{ ...monoFont, color: rupture ? C.danger : low ? "#B4813A" : C.ink }}>{p.qty}</span>
+                      <button onClick={() => updateQty(p.id, 1)} className="w-6 h-6 rounded border flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={12} /></button>
+                      {rupture && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: C.dangerSoft, color: C.danger }}>RUPTURE</span>}
+                      {low && <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ background: "#F5E7D3", color: "#B4813A" }}>BAS</span>}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex items-center gap-2 justify-end">
+                      <button onClick={() => startEdit(p)} title="Modifier"><Pencil size={14} color={C.accent} /></button>
+                      <button onClick={() => printLabel(p)} title="Imprimer l'étiquette"><Printer size={14} color={C.inkSoft} /></button>
+                      <button onClick={() => removeProduct(p.id)}><Trash2 size={14} color={C.danger} /></button>
+                    </div>
+                  </td>
+                </tr>
               );
             })}
             {filtered.length === 0 && (
@@ -1299,17 +1129,14 @@ function Stock({ db, persist, notify, log }) {
 
 // ---------- Achats ----------
 function Achats({ db, persist, notify }) {
-  const [form, setForm] = useState({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
+  const [form, setForm] = useState({ productId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
   const useExisting = form.productId !== "";
-  const selectedProduct = useExisting ? db.products.find((p) => p.id === form.productId) : null;
-  const needsVariant = selectedProduct && selectedProduct.variants && selectedProduct.variants.length > 0;
 
   const submit = () => {
     const supplierLabel = form.supplierId
       ? db.suppliers.find((s) => s.id === form.supplierId)?.name
       : form.supplierName;
     if (!supplierLabel || !form.qty || !form.unitCost) return notify("Fournisseur, quantité et coût requis");
-    if (needsVariant && !form.variantId) return notify("Choisissez la variante à réapprovisionner");
     let products = [...db.products];
     let productName = "";
     const qty = Number(form.qty);
@@ -1319,16 +1146,11 @@ function Achats({ db, persist, notify }) {
     if (useExisting) {
       const idx = products.findIndex((p) => p.id === form.productId);
       if (idx === -1) return notify("Produit introuvable");
-      products = adjustStock(products, form.productId, needsVariant ? form.variantId : null, qty);
-      products = products.map((p) => (p.id === form.productId ? { ...p, costPrice: unitCost } : p));
-      productName = products.find((p) => p.id === form.productId).name;
-      if (needsVariant) {
-        const v = products.find((p) => p.id === form.productId).variants.find((x) => x.id === form.variantId);
-        productName += ` — ${variantLabel(v)}`;
-      }
+      products[idx] = { ...products[idx], qty: products[idx].qty + qty, costPrice: unitCost };
+      productName = products[idx].name;
     } else {
       if (!form.newName) return notify("Nom du nouveau produit requis");
-      const p = { id: uid(), name: form.newName, sku: "SKU-" + uid().toUpperCase().slice(0, 5), barcode: uidBarcode(), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5, variants: [] };
+      const p = { id: uid(), name: form.newName, sku: "SKU-" + uid().toUpperCase().slice(0, 5), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5 };
       products.push(p);
       productName = p.name;
     }
@@ -1346,7 +1168,7 @@ function Achats({ db, persist, notify }) {
 
     const purchase = { id: uid(), date: today(), productName, supplier: supplierLabel, supplierId, qty, unitCost, total, payment: form.payment };
     persist({ ...db, products, suppliers, purchases: [...db.purchases, purchase] });
-    setForm({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
+    setForm({ productId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
     notify("Achat enregistré, stock mis à jour");
   };
 
@@ -1358,21 +1180,11 @@ function Achats({ db, persist, notify }) {
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
         <div className="grid md:grid-cols-6 gap-3">
           <Field label="Produit existant">
-            <select className={inputClass} style={inputStyle} value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value, variantId: "" })}>
+            <select className={inputClass} style={inputStyle} value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value })}>
               <option value="">— Nouveau produit —</option>
               {db.products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </Field>
-          {needsVariant && (
-            <Field label="Variante à réapprovisionner">
-              <select className={inputClass} style={inputStyle} value={form.variantId} onChange={(e) => setForm({ ...form, variantId: e.target.value })}>
-                <option value="">— Choisir —</option>
-                {selectedProduct.variants.map((v) => (
-                  <option key={v.id} value={v.id}>{variantLabel(v) || "Standard"} ({v.qty || 0} en stock)</option>
-                ))}
-              </select>
-            </Field>
-          )}
           {!useExisting && (
             <Field label="Nom du produit">
               <input className={inputClass} style={inputStyle} value={form.newName} onChange={(e) => setForm({ ...form, newName: e.target.value })} />
@@ -1452,32 +1264,17 @@ function Ventes({ db, persist, notify, session }) {
   const [discount, setDiscount] = useState("0");
   const [channel, setChannel] = useState("Boutique");
   const [scan, setScan] = useState("");
-  const [pickingProduct, setPickingProduct] = useState(null);
-
-  const cartKey = (productId, variantId) => productId + "::" + (variantId || "");
-
-  const addVariantToCart = (p, variant) => {
-    const availableQty = variant ? variant.qty || 0 : productQty(p);
-    if (availableQty <= 0) return notify("Rupture de stock");
-    const key = cartKey(p.id, variant && variant.id);
-    setCart((c) => {
-      const existing = c.find((i) => cartKey(i.productId, i.variantId) === key);
-      if (existing) {
-        if (existing.qty >= availableQty) { notify("Stock insuffisant"); return c; }
-        return c.map((i) => (cartKey(i.productId, i.variantId) === key ? { ...i, qty: i.qty + 1 } : i));
-      }
-      const name = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
-      return [...c, { productId: p.id, variantId: variant ? variant.id : null, name, price: p.price, qty: 1 }];
-    });
-    setPickingProduct(null);
-  };
 
   const addToCart = (p) => {
-    if (p.variants && p.variants.length > 0) {
-      setPickingProduct(p);
-      return;
-    }
-    addVariantToCart(p, null);
+    if (p.qty <= 0) return notify("Rupture de stock");
+    setCart((c) => {
+      const existing = c.find((i) => i.productId === p.id);
+      if (existing) {
+        if (existing.qty >= p.qty) { notify("Stock insuffisant"); return c; }
+        return c.map((i) => (i.productId === p.id ? { ...i, qty: i.qty + 1 } : i));
+      }
+      return [...c, { productId: p.id, name: p.name, price: p.price, qty: 1 }];
+    });
   };
 
   const handleScan = (e) => {
@@ -1485,14 +1282,14 @@ function Ventes({ db, persist, notify, session }) {
     const code = scan.trim();
     setScan("");
     if (!code) return;
-    const found = findByCode(db.products, code);
-    if (!found) return notify("Aucun produit avec ce code");
-    addVariantToCart(found.product, found.variant);
+    const p = db.products.find((x) => x.barcode === code || x.sku === code);
+    if (!p) return notify("Aucun produit avec ce code");
+    addToCart(p);
   };
 
-  const changeQty = (key, delta) =>
-    setCart((c) => c.map((i) => (cartKey(i.productId, i.variantId) === key ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
-  const removeItem = (key) => setCart((c) => c.filter((i) => cartKey(i.productId, i.variantId) !== key));
+  const changeQty = (id, delta) =>
+    setCart((c) => c.map((i) => (i.productId === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
+  const removeItem = (id) => setCart((c) => c.filter((i) => i.productId !== id));
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountAmount = Math.min(subtotal, (subtotal * (Number(discount) || 0)) / 100);
@@ -1503,17 +1300,15 @@ function Ventes({ db, persist, notify, session }) {
 
   const checkout = () => {
     if (cart.length === 0) return notify("Panier vide");
-    for (const item of cart) {
-      const p = db.products.find((x) => x.id === item.productId);
-      if (!p) return notify(`Produit introuvable pour ${item.name}`);
-      const variant = item.variantId ? (p.variants || []).find((v) => v.id === item.variantId) : null;
-      const available = variant ? variant.qty || 0 : productQty(p);
-      if (available < item.qty) return notify(`Stock insuffisant pour ${item.name}`);
-    }
     let products = [...db.products];
     for (const item of cart) {
-      products = adjustStock(products, item.productId, item.variantId, -item.qty);
+      const idx = products.findIndex((p) => p.id === item.productId);
+      if (idx === -1 || products[idx].qty < item.qty) return notify(`Stock insuffisant pour ${item.name}`);
     }
+    products = products.map((p) => {
+      const item = cart.find((i) => i.productId === p.id);
+      return item ? { ...p, qty: p.qty - item.qty } : p;
+    });
 
     const clientName = client || "Client comptoir";
     let clients = [...db.clients];
@@ -1569,52 +1364,22 @@ function Ventes({ db, persist, notify, session }) {
           onKeyDown={handleScan}
         />
       </div>
-
-      {pickingProduct && (
-        <div className="rounded-lg border p-4 mb-4" style={{ borderColor: C.accent, background: "#fff" }}>
-          <div className="flex items-center justify-between mb-3">
-            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">
-              Choisir une variante — {pickingProduct.name}
-            </div>
-            <button onClick={() => setPickingProduct(null)}><X size={14} color={C.inkSoft} /></button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(pickingProduct.variants || []).map((v) => (
-              <button
-                key={v.id}
-                onClick={() => addVariantToCart(pickingProduct, v)}
-                disabled={(v.qty || 0) <= 0}
-                className="px-3 py-2 rounded-md border text-sm disabled:opacity-40"
-                style={{ borderColor: C.border }}
-              >
-                {variantLabel(v) || "Standard"} <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>({v.qty || 0})</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {db.products.map((p) => {
-              const qty = productQty(p);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => addToCart(p)}
-                  disabled={qty <= 0}
-                  className="text-left rounded-lg border p-4 disabled:opacity-40"
-                  style={{ borderColor: C.border, background: "#fff" }}
-                >
-                  <div className="text-sm mb-1" style={{ color: C.ink }}>{p.name}</div>
-                  <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>
-                    {p.sku} · {qty} en stock{p.variants && p.variants.length > 0 ? ` · ${p.variants.length} variantes` : ""}
-                  </div>
-                  <div style={{ ...monoFont, color: C.accent }} className="mt-2 text-sm">{fmt(p.price)} DHS</div>
-                </button>
-              );
-            })}
+            {db.products.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => addToCart(p)}
+                disabled={p.qty <= 0}
+                className="text-left rounded-lg border p-4 disabled:opacity-40"
+                style={{ borderColor: C.border, background: "#fff" }}
+              >
+                <div className="text-sm mb-1" style={{ color: C.ink }}>{p.name}</div>
+                <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>{p.sku} · {p.qty} en stock</div>
+                <div style={{ ...monoFont, color: C.accent }} className="mt-2 text-sm">{fmt(p.price)} DHS</div>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -1624,18 +1389,15 @@ function Ventes({ db, persist, notify, session }) {
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
           ) : (
             <ul className="space-y-3 mb-4">
-              {cart.map((i) => {
-                const key = cartKey(i.productId, i.variantId);
-                return (
-                  <li key={key} className="flex items-center justify-between text-sm gap-2">
-                    <span style={{ color: C.ink }} className="flex-1">{i.name}</span>
-                    <button onClick={() => changeQty(key, -1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={10} /></button>
-                    <span style={monoFont}>{i.qty}</span>
-                    <button onClick={() => changeQty(key, 1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={10} /></button>
-                    <button onClick={() => removeItem(key)}><X size={13} color={C.danger} /></button>
-                  </li>
-                );
-              })}
+              {cart.map((i) => (
+                <li key={i.productId} className="flex items-center justify-between text-sm gap-2">
+                  <span style={{ color: C.ink }} className="flex-1">{i.name}</span>
+                  <button onClick={() => changeQty(i.productId, -1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={10} /></button>
+                  <span style={monoFont}>{i.qty}</span>
+                  <button onClick={() => changeQty(i.productId, 1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={10} /></button>
+                  <button onClick={() => removeItem(i.productId)}><X size={13} color={C.danger} /></button>
+                </li>
+              ))}
             </ul>
           )}
           <Field label="Client">
@@ -1723,9 +1485,9 @@ function Facturation({ db, persist, notify, log }) {
     if (!sale) return notify("Vente d'origine introuvable, retour impossible");
     if (sale.returned) return notify("Cette vente a déjà été retournée");
 
-    let products = [...db.products];
-    (inv.items || []).forEach((item) => {
-      products = adjustStock(products, item.productId, item.variantId, item.qty);
+    const products = db.products.map((p) => {
+      const item = (inv.items || []).find((i) => i.productId === p.id);
+      return item ? { ...p, qty: p.qty + item.qty } : p;
     });
     const clients = inv.clientId && inv.status === "pending"
       ? db.clients.map((c) => (c.id === inv.clientId ? { ...c, balanceDue: Math.max(0, (c.balanceDue || 0) - inv.total) } : c))
@@ -2227,11 +1989,11 @@ function Devis({ db, persist, notify, log, session }) {
   const convertToInvoice = (q) => {
     for (const item of q.items) {
       const prod = db.products.find((p) => p.id === item.productId);
-      if (!prod || productQty(prod) < item.qty) return notify(`Stock insuffisant pour ${item.name}`);
+      if (!prod || prod.qty < item.qty) return notify(`Stock insuffisant pour ${item.name}`);
     }
-    let products = [...db.products];
-    q.items.forEach((item) => {
-      products = adjustStock(products, item.productId, item.variantId, -item.qty);
+    const products = db.products.map((p) => {
+      const item = q.items.find((i) => i.productId === p.id);
+      return item ? { ...p, qty: p.qty - item.qty } : p;
     });
     const soldBy = session ? session.userName : "—";
     const saleId = uid();
@@ -2652,8 +2414,8 @@ function Finance({ db, persist, notify, log, session }) {
   const totalRevenue = db.sales.filter((x) => !x.returned).reduce((s, x) => s + x.total, 0);
   const totalCosts = db.purchases.reduce((s, x) => s + x.total, 0);
   const totalCharges = (db.charges || []).reduce((s, x) => s + x.amount, 0);
-  const stockValue = db.products.reduce((s, p) => s + p.price * productQty(p), 0); // valeur au prix de vente
-  const stockValueAtCost = db.products.reduce((s, p) => s + (p.costPrice || 0) * productQty(p), 0); // valeur au coût d'achat
+  const stockValue = db.products.reduce((s, p) => s + p.price * p.qty, 0); // valeur au prix de vente
+  const stockValueAtCost = db.products.reduce((s, p) => s + (p.costPrice || 0) * p.qty, 0); // valeur au coût d'achat
   const cashProfit = totalRevenue - totalCosts - totalCharges; // bénéfice réel : ventes moins achats moins charges (loyer, salaires...)
   const currentCapital = (db.capital || 0) + cashProfit + stockValueAtCost; // patrimoine total : capital de départ + bénéfice encaissé + valeur de la marchandise encore en stock (au coût)
 
