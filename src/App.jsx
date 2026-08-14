@@ -1453,6 +1453,7 @@ function Ventes({ db, persist, notify, session }) {
   const [channel, setChannel] = useState("Boutique");
   const [scan, setScan] = useState("");
   const [pickingProduct, setPickingProduct] = useState(null);
+  const [search, setSearch] = useState("");
 
   const cartKey = (productId, variantId) => productId + "::" + (variantId || "");
 
@@ -1559,15 +1560,26 @@ function Ventes({ db, persist, notify, session }) {
   return (
     <div>
       <SectionTitle eyebrow="Point de vente" title="Ventes / PDV" />
-      <div className="flex items-center gap-2 mb-4 border rounded-md px-3 py-2 max-w-sm" style={{ borderColor: C.accent, background: "#fff" }}>
-        <Barcode size={16} color={C.accent} />
-        <input
-          placeholder="Scanner ou taper un code-barres, puis Entrée…"
-          className="w-full outline-none text-sm"
-          value={scan}
-          onChange={(e) => setScan(e.target.value)}
-          onKeyDown={handleScan}
-        />
+      <div className="flex flex-wrap gap-3 mb-4">
+        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.accent, background: "#fff" }}>
+          <Barcode size={16} color={C.accent} />
+          <input
+            placeholder="Scanner ou taper un code-barres, puis Entrée…"
+            className="w-full outline-none text-sm"
+            value={scan}
+            onChange={(e) => setScan(e.target.value)}
+            onKeyDown={handleScan}
+          />
+        </div>
+        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: "#fff" }}>
+          <Search size={16} color={C.inkSoft} />
+          <input
+            placeholder="Rechercher par nom ou SKU…"
+            className="w-full outline-none text-sm"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
       </div>
 
       {pickingProduct && (
@@ -1597,7 +1609,9 @@ function Ventes({ db, persist, notify, session }) {
       <div className="grid lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {db.products.map((p) => {
+            {db.products
+              .filter((p) => (p.name + " " + p.sku).toLowerCase().includes(search.toLowerCase()))
+              .map((p) => {
               const qty = productQty(p);
               return (
                 <button
