@@ -4,7 +4,8 @@ import {
   Plus, Trash2, X, Search, TrendingUp, AlertTriangle,
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
-  FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers
+  FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
+  Image as ImageIcon
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -161,6 +162,23 @@ async function sbFetchAuditLog(session) {
   });
   if (!res.ok) return [];
   return res.json();
+}
+
+// ---- Product image upload (Supabase Storage) ----
+async function sbUploadProductImage(session, file) {
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const path = `${session.userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/product-images/${path}`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${session.accessToken}`,
+      "Content-Type": file.type || "image/jpeg",
+    },
+    body: file,
+  });
+  if (!res.ok) throw new Error("Échec de l'envoi de l'image");
+  return `${SUPABASE_URL}/storage/v1/object/public/product-images/${path}`;
 }
 
 // ---- Cloud backups (one row per day, upserted) ----
@@ -373,7 +391,7 @@ export default function App() {
         {tab === "achats" && <Achats db={db} persist={persist} notify={notify} />}
         {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} session={session} />}
         {tab === "livraison" && <Livraison db={db} persist={persist} notify={notify} log={log} />}
-        {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} />}
+        {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} />}
         {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} />}
         {tab === "fournisseurs" && <Fournisseurs db={db} persist={persist} notify={notify} log={log} />}
         {tab === "cheques" && <Cheques db={db} persist={persist} notify={notify} log={log} />}
@@ -907,12 +925,26 @@ function Rapports({ db }) {
 }
 
 // ---------- Stock ----------
-function Stock({ db, persist, notify, log }) {
-  const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5" });
+function Stock({ db, persist, notify, log, session }) {
+  const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
   const [q, setQ] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "" });
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageUpload = async (file) => {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await sbUploadProductImage(session, file);
+      setForm((f) => ({ ...f, image: url }));
+      notify("Image envoyée");
+    } catch (e) {
+      notify("Échec de l'envoi de l'image");
+    }
+    setUploading(false);
+  };
 
   const startEdit = (p) => {
     setEditingId(p.id);
@@ -925,13 +957,14 @@ function Stock({ db, persist, notify, log }) {
       costPrice: String(p.costPrice || 0),
       qty: String(p.qty),
       minQty: String(p.minQty),
+      image: p.image || "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5" });
+    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
   };
 
   const addProduct = () => {
@@ -949,6 +982,7 @@ function Stock({ db, persist, notify, log }) {
         costPrice: Number(form.costPrice) || 0,
         qty: before.variants && before.variants.length > 0 ? before.qty : Number(form.qty) || 0,
         minQty: Number(form.minQty) || 0,
+        image: form.image || "",
       };
       persist({ ...db, products: db.products.map((p) => (p.id === editingId ? updated : p)) });
       if (log) log("update_product", "products", editingId, { name: updated.name });
@@ -967,10 +1001,11 @@ function Stock({ db, persist, notify, log }) {
       costPrice: Number(form.costPrice) || 0,
       qty: Number(form.qty) || 0,
       minQty: Number(form.minQty) || 0,
+      image: form.image || "",
       variants: [],
     };
     persist({ ...db, products: [...db.products, p] });
-    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5" });
+    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
     notify("Produit ajouté");
   };
 
@@ -1075,6 +1110,37 @@ function Stock({ db, persist, notify, log }) {
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
           {editingId ? "Modifier le produit" : "Nouveau produit"}
         </div>
+
+        <div className="flex items-center gap-4 mb-4">
+          <div
+            className="w-20 h-20 rounded-md border flex items-center justify-center overflow-hidden shrink-0"
+            style={{ borderColor: C.border, background: C.paper }}
+          >
+            {form.image ? (
+              <img src={form.image} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <ImageIcon size={22} color={C.inkSoft} />
+            )}
+          </div>
+          <div>
+            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border cursor-pointer" style={{ borderColor: C.border, color: C.ink }}>
+              <Upload size={14} /> {uploading ? "Envoi…" : "Choisir une photo"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => handleImageUpload(e.target.files[0])}
+              />
+            </label>
+            {form.image && (
+              <button onClick={() => setForm({ ...form, image: "" })} className="ml-2 text-xs" style={{ color: C.danger }}>
+                Retirer
+              </button>
+            )}
+          </div>
+        </div>
+
         <div className="grid md:grid-cols-8 gap-3">
           <Field label="Nom">
             <input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
@@ -1164,7 +1230,8 @@ function Stock({ db, persist, notify, log }) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b" >
-              <td className="px-4 py-3" style={{ borderColor: C.border }}>Produit</td>
+              <td className="px-4 py-3" style={{ borderColor: C.border }}></td>
+              <td className="px-4 py-3">Produit</td>
               <td className="px-4 py-3">SKU / Code-barres</td>
               <td className="px-4 py-3">Catégorie</td>
               <td className="px-4 py-3">Coût</td>
@@ -1186,6 +1253,11 @@ function Stock({ db, persist, notify, log }) {
               return (
                 <React.Fragment key={p.id}>
                   <tr className="border-b" style={{ borderColor: C.border }}>
+                    <td className="px-4 py-3">
+                      <div className="w-9 h-9 rounded border flex items-center justify-center overflow-hidden" style={{ borderColor: C.border, background: C.paper }}>
+                        {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={14} color={C.inkSoft} />}
+                      </div>
+                    </td>
                     <td className="px-4 py-3" style={{ color: C.ink }}>
                       {p.name}
                       {hasVariants && (
@@ -1232,7 +1304,7 @@ function Stock({ db, persist, notify, log }) {
                   </tr>
                   {expanded && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-4" style={{ background: C.paper }}>
+                      <td colSpan={9} className="px-4 py-4" style={{ background: C.paper }}>
                         <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-3">
                           Variantes de "{p.name}" (couleur / taille / longueur)
                         </div>
@@ -1288,7 +1360,7 @@ function Stock({ db, persist, notify, log }) {
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={8} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun produit trouvé.</td></tr>
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun produit trouvé.</td></tr>
             )}
           </tbody>
         </table>
@@ -1618,14 +1690,19 @@ function Ventes({ db, persist, notify, session }) {
                   key={p.id}
                   onClick={() => addToCart(p)}
                   disabled={qty <= 0}
-                  className="text-left rounded-lg border p-4 disabled:opacity-40"
+                  className="text-left rounded-lg border p-3 disabled:opacity-40 flex gap-3 items-center"
                   style={{ borderColor: C.border, background: "#fff" }}
                 >
-                  <div className="text-sm mb-1" style={{ color: C.ink }}>{p.name}</div>
-                  <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>
-                    {p.sku} · {qty} en stock{p.variants && p.variants.length > 0 ? ` · ${p.variants.length} variantes` : ""}
+                  <div className="w-12 h-12 rounded-md border flex items-center justify-center overflow-hidden shrink-0" style={{ borderColor: C.border, background: C.paper }}>
+                    {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={16} color={C.inkSoft} />}
                   </div>
-                  <div style={{ ...monoFont, color: C.accent }} className="mt-2 text-sm">{fmt(p.price)} DHS</div>
+                  <div className="min-w-0">
+                    <div className="text-sm mb-1 truncate" style={{ color: C.ink }}>{p.name}</div>
+                    <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>
+                      {p.sku} · {qty} en stock{p.variants && p.variants.length > 0 ? ` · ${p.variants.length} variantes` : ""}
+                    </div>
+                    <div style={{ ...monoFont, color: C.accent }} className="mt-1 text-sm">{fmt(p.price)} DHS</div>
+                  </div>
                 </button>
               );
             })}
