@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   LayoutDashboard, PackagePlus, ShoppingCart, Boxes, Receipt,
   Plus, Trash2, X, Search, TrendingUp, AlertTriangle,
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon
+  Image as ImageIcon, Camera
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -13,6 +13,7 @@ import {
 } from "recharts";
 import * as XLSX from "xlsx";
 import JsBarcode from "jsbarcode";
+import { Html5Qrcode } from "html5-qrcode";
 
 // ---- Design tokens ----
 const C = {
@@ -427,6 +428,54 @@ export default function App() {
 }
 
 // ---------- Login ----------
+// ---------- Camera barcode scanner (mobile/webcam) ----------
+function CameraScanner({ onDetected, onClose }) {
+  const regionId = "camera-scan-region";
+  const scannerRef = useRef(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const scanner = new Html5Qrcode(regionId);
+    scannerRef.current = scanner;
+    let stopped = false;
+
+    scanner
+      .start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 260, height: 160 } },
+        (decodedText) => {
+          if (stopped) return;
+          stopped = true;
+          scanner.stop().catch(() => {}).finally(() => onDetected(decodedText));
+        },
+        () => {} // ignore per-frame "not found" noise
+      )
+      .catch(() => setError("Impossible d'accéder à la caméra. Vérifiez les autorisations du navigateur."));
+
+    return () => {
+      stopped = true;
+      scanner.stop().catch(() => {});
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,24,43,0.85)" }}>
+      <div className="w-full max-w-sm rounded-lg p-4" style={{ background: "#fff" }}>
+        <div className="flex items-center justify-between mb-3">
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">Scanner un code-barres</div>
+          <button onClick={onClose}><X size={16} color={C.inkSoft} /></button>
+        </div>
+        {error ? (
+          <p className="text-sm" style={{ color: C.danger }}>{error}</p>
+        ) : (
+          <div id={regionId} style={{ width: "100%", borderRadius: 8, overflow: "hidden" }} />
+        )}
+        <p className="text-xs mt-3 text-center" style={{ color: C.inkSoft }}>Pointez la caméra vers le code-barres du produit.</p>
+      </div>
+    </div>
+  );
+}
+
 function Login({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -1526,6 +1575,7 @@ function Ventes({ db, persist, notify, session }) {
   const [scan, setScan] = useState("");
   const [pickingProduct, setPickingProduct] = useState(null);
   const [search, setSearch] = useState("");
+  const [showCamera, setShowCamera] = useState(false);
 
   const cartKey = (productId, variantId) => productId + "::" + (variantId || "");
 
@@ -1558,6 +1608,13 @@ function Ventes({ db, persist, notify, session }) {
     const code = scan.trim();
     setScan("");
     if (!code) return;
+    const found = findByCode(db.products, code);
+    if (!found) return notify("Aucun produit avec ce code");
+    addVariantToCart(found.product, found.variant);
+  };
+
+  const handleCameraDetected = (code) => {
+    setShowCamera(false);
     const found = findByCode(db.products, code);
     if (!found) return notify("Aucun produit avec ce code");
     addVariantToCart(found.product, found.variant);
@@ -1643,6 +1700,13 @@ function Ventes({ db, persist, notify, session }) {
             onKeyDown={handleScan}
           />
         </div>
+        <button
+          onClick={() => setShowCamera(true)}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm text-white"
+          style={{ background: C.accent }}
+        >
+          <Camera size={16} /> Scanner avec la caméra
+        </button>
         <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: "#fff" }}>
           <Search size={16} color={C.inkSoft} />
           <input
@@ -1653,6 +1717,8 @@ function Ventes({ db, persist, notify, session }) {
           />
         </div>
       </div>
+
+      {showCamera && <CameraScanner onDetected={handleCameraDetected} onClose={() => setShowCamera(false)} />}
 
       {pickingProduct && (
         <div className="rounded-lg border p-4 mb-4" style={{ borderColor: C.accent, background: "#fff" }}>
