@@ -14,7 +14,8 @@
     "lucide-react": "^0.383.0",
     "recharts": "^2.12.7",
     "xlsx": "^0.18.5",
-    "jsbarcode": "^3.11.6"
+    "jsbarcode": "^3.11.6",
+    "html5-qrcode": "^2.3.8"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
