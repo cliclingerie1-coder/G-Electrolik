@@ -231,6 +231,21 @@ async function sbRestoreBackup(session, date) {
   return rows && rows[0] && rows[0].data;
 }
 
+async function sbLoadLatestBackup(session) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/backups?select=data,backup_date&order=backup_date.desc&limit=1`,
+      { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.accessToken}` } }
+    );
+    if (!res.ok) return null;
+    const rows = await res.json();
+    return rows && rows[0] ? rows[0].data : null;
+  } catch (e) {
+    console.error("Load latest backup error", e);
+    return null;
+  }
+}
+
 const DEFAULT_DB = {
   products: [
     { id: uid(), name: "Crème hydratante 50ml", sku: "COS-001", barcode: uidBarcode(), category: "Soin visage", price: 89, costPrice: 55, qty: 24, minQty: 5 },
@@ -302,7 +317,17 @@ export default function App() {
       role: (profile && profile.role) || "vendeur",
     };
     setSession(s);
-    sbSaveBackup(s, db); // assure une sauvegarde du jour dès la connexion
+    // Synchronise avec la dernière sauvegarde cloud (récupère les données créées sur un autre appareil)
+    const cloudDb = await sbLoadLatestBackup(s);
+    if (cloudDb) {
+      setDb(cloudDb);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudDb));
+      } catch (e) {
+        console.error("Storage error", e);
+      }
+    }
+    sbSaveBackup(s, cloudDb || db); // assure une sauvegarde du jour dès la connexion
   };
 
   const nav = [
