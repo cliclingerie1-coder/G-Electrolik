@@ -178,7 +178,11 @@ async function sbUploadProductImage(session, file) {
     },
     body: file,
   });
-  if (!res.ok) throw new Error("Échec de l'envoi de l'image");
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json()).message || (await res.text()); } catch (e) {}
+    throw new Error(detail || `Échec de l'envoi (HTTP ${res.status})`);
+  }
   return `${SUPABASE_URL}/storage/v1/object/public/product-images/${path}`;
 }
 
@@ -307,7 +311,7 @@ export default function App() {
     { id: "devis", label: "Devis", icon: FileText },
     { id: "achats", label: "Achats", icon: PackagePlus },
     { id: "ventes", label: "Ventes / PDV", icon: ShoppingCart },
-    { id: "livraison", label: "Bons de livraison", icon: ClipboardList },
+    { id: "livraison", label: "Colis & Livraison", icon: ClipboardList },
     { id: "stock", label: "Stock", icon: Boxes },
     { id: "clients", label: "Clients", icon: Users },
     { id: "fournisseurs", label: "Fournisseurs", icon: Truck },
@@ -990,7 +994,7 @@ function Stock({ db, persist, notify, log, session }) {
       setForm((f) => ({ ...f, image: url }));
       notify("Image envoyée");
     } catch (e) {
-      notify("Échec de l'envoi de l'image");
+      notify(e.message || "Échec de l'envoi de l'image");
     }
     setUploading(false);
   };
@@ -2035,14 +2039,20 @@ function Facturation({ db, persist, notify, log }) {
 }
 
 // ---------- Clients ----------
+const PAYMENT_MODE_LABELS = { hebdo: "Chaque semaine", "10j": "Tous les 10 jours (sur colis livrés)", surplace: "Sur place" };
+
 function Clients({ db, persist, notify, log }) {
-  const [form, setForm] = useState({ name: "", phone: "" });
+  const [form, setForm] = useState({ name: "", phone: "", paymentMode: "surplace" });
 
   const addClient = () => {
     if (!form.name) return notify("Nom requis");
-    persist({ ...db, clients: [...db.clients, { id: uid(), name: form.name, phone: form.phone, balanceDue: 0 }] });
-    setForm({ name: "", phone: "" });
+    persist({ ...db, clients: [...db.clients, { id: uid(), name: form.name, phone: form.phone, paymentMode: form.paymentMode, balanceDue: 0 }] });
+    setForm({ name: "", phone: "", paymentMode: "surplace" });
     notify("Client ajouté");
+  };
+
+  const changePaymentMode = (id, mode) => {
+    persist({ ...db, clients: db.clients.map((c) => (c.id === id ? { ...c, paymentMode: mode } : c)) });
   };
 
   const removeClient = (id) => {
@@ -2072,6 +2082,11 @@ function Clients({ db, persist, notify, log }) {
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Nom"><input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
           <Field label="Téléphone"><input className={inputClass} style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+          <Field label="Mode de paiement">
+            <select className={inputClass} style={inputStyle} value={form.paymentMode} onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}>
+              {Object.entries(PAYMENT_MODE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </Field>
         </div>
         <button onClick={addClient} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
           <Plus size={14} /> Ajouter le client
@@ -2082,7 +2097,7 @@ function Clients({ db, persist, notify, log }) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Client</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Solde dû</td><td className="px-4 py-3"></td>
+              <td className="px-4 py-3">Client</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Mode de paiement</td><td className="px-4 py-3">Solde dû</td><td className="px-4 py-3"></td>
             </tr>
           </thead>
           <tbody>
@@ -2090,12 +2105,22 @@ function Clients({ db, persist, notify, log }) {
               <tr key={c.id} className="border-b" style={{ borderColor: C.border }}>
                 <td className="px-4 py-3" style={{ color: C.ink }}>{c.name}</td>
                 <td className="px-4 py-3 flex items-center gap-1" style={{ color: C.inkSoft }}><Phone size={12} />{c.phone || "—"}</td>
+                <td className="px-4 py-3">
+                  <select
+                    className="border rounded-md px-2 py-1 text-xs outline-none"
+                    style={inputStyle}
+                    value={c.paymentMode || "surplace"}
+                    onChange={(e) => changePaymentMode(c.id, e.target.value)}
+                  >
+                    {Object.entries(PAYMENT_MODE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </td>
                 <td className="px-4 py-3" style={{ ...monoFont, color: c.balanceDue > 0 ? C.danger : C.success }}>{fmt(c.balanceDue || 0)} DHS</td>
                 <td className="px-4 py-3 text-right"><button onClick={() => removeClient(c.id)}><Trash2 size={14} color={C.danger} /></button></td>
               </tr>
             ))}
             {db.clients.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun client enregistré.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun client enregistré.</td></tr>
             )}
           </tbody>
         </table>
@@ -2486,50 +2511,87 @@ function Livraison({ db, persist, notify, log }) {
   const [clientId, setClientId] = useState("");
   const [client, setClient] = useState("");
   const [items, setItems] = useState([]);
+  const [payAmounts, setPayAmounts] = useState({});
 
   const addToCart = (p) => {
     setItems((c) => {
       const existing = c.find((i) => i.productId === p.id);
       if (existing) return c.map((i) => (i.productId === p.id ? { ...i, qty: i.qty + 1 } : i));
-      return [...c, { productId: p.id, name: p.name, qty: 1 }];
+      return [...c, { productId: p.id, name: p.name, qty: 1, unitPrice: p.price || 0 }];
     });
   };
   const changeQty = (id, delta) =>
     setItems((c) => c.map((i) => (i.productId === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
+  const changePrice = (id, val) =>
+    setItems((c) => c.map((i) => (i.productId === id ? { ...i, unitPrice: Number(val) || 0 } : i)));
   const removeItem = (id) => setItems((c) => c.filter((i) => i.productId !== id));
+
+  const cartMontant = items.reduce((s, i) => s + i.qty * (i.unitPrice || 0), 0);
 
   const createBL = () => {
     if (items.length === 0) return notify("Aucun article sélectionné");
     const number = "BL-" + db.nextBL;
-    const bl = { id: uid(), number, date: today(), client: client || "Client comptoir", clientId, items, status: "pending" };
+    const montant = cartMontant;
+    const bl = { id: uid(), number, date: today(), client: client || "Client comptoir", clientId, items, montant, status: "attente" };
     persist({ ...db, deliveryNotes: [...db.deliveryNotes, bl], nextBL: db.nextBL + 1 });
-    if (log) log("create_bl", "deliveryNotes", bl.id, { number });
+    if (log) log("create_bl", "deliveryNotes", bl.id, { number, montant });
     setItems([]); setClient(""); setClientId("");
-    notify(`Bon de livraison ${number} créé`);
+    notify(`Colis ${number} créé`);
   };
 
+  // Colis livré : le montant s'ajoute au solde dû du client (paiement selon son mode : semaine / 10j / sur place)
   const markDelivered = (id) => {
     const bl = db.deliveryNotes.find((b) => b.id === id);
-    persist({ ...db, deliveryNotes: db.deliveryNotes.map((b) => (b.id === id ? { ...b, status: "delivered" } : b)) });
-    if (log && bl) log("mark_delivered", "deliveryNotes", id, { number: bl.number });
+    if (!bl) return;
+    const clients = bl.clientId
+      ? db.clients.map((c) => (c.id === bl.clientId ? { ...c, balanceDue: (c.balanceDue || 0) + (bl.montant || 0) } : c))
+      : db.clients;
+    persist({ ...db, clients, deliveryNotes: db.deliveryNotes.map((b) => (b.id === id ? { ...b, status: "livre", deliveredAt: today() } : b)) });
+    if (log) log("mark_delivered", "deliveryNotes", id, { number: bl.number, montant: bl.montant });
+    notify(`${bl.number} marqué livré`);
   };
+
+  // Échec de livraison : le colis revient, le stock est remis automatiquement, aucun montant dû
+  const markEchec = (id) => {
+    const bl = db.deliveryNotes.find((b) => b.id === id);
+    if (!bl) return;
+    let products = db.products;
+    bl.items.forEach((i) => {
+      products = adjustStock(products, i.productId, i.variantId || null, i.qty);
+    });
+    persist({ ...db, products, deliveryNotes: db.deliveryNotes.map((b) => (b.id === id ? { ...b, status: "echec" } : b)) });
+    if (log) log("echec_livraison", "deliveryNotes", id, { number: bl.number });
+    notify(`${bl.number} : échec de livraison, colis remis en stock`);
+  };
+
+  // Encaissement d'un paiement client (cycle semaine / 10 jours / sur place)
+  const encaisser = (c) => {
+    const amount = Number(payAmounts[c.id]);
+    if (!amount || amount <= 0) return notify("Montant invalide");
+    persist({ ...db, clients: db.clients.map((x) => (x.id === c.id ? { ...x, balanceDue: Math.max(0, (x.balanceDue || 0) - amount) } : x)) });
+    if (log) log("encaissement_client", "clients", c.id, { name: c.name, amount });
+    setPayAmounts((p) => ({ ...p, [c.id]: "" }));
+    notify(`Paiement de ${fmt(amount)} DHS encaissé pour ${c.name}`);
+  };
+
+  const clientsAvecColis = db.clients.filter((c) => db.deliveryNotes.some((b) => b.clientId === c.id));
 
   return (
     <div>
-      <SectionTitle eyebrow="Logistique" title="Bons de livraison" />
+      <SectionTitle eyebrow="Logistique" title="Colis & Bons de livraison" />
       <div className="grid lg:grid-cols-3 gap-6 mb-10">
         <div className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {db.products.map((p) => (
               <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-lg border p-4" style={{ borderColor: C.border, background: "#fff" }}>
                 <div className="text-sm" style={{ color: C.ink }}>{p.name}</div>
-                <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku}</div>
+                <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · {fmt(p.price)} DHS</div>
               </button>
             ))}
           </div>
         </div>
         <div className="rounded-lg border p-5 h-fit" style={{ borderColor: C.border, background: "#fff" }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau bon</div>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau colis</div>
           {items.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
           ) : (
@@ -2540,10 +2602,24 @@ function Livraison({ db, persist, notify, log }) {
                   <button onClick={() => changeQty(i.productId, -1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={10} /></button>
                   <span style={monoFont}>{i.qty}</span>
                   <button onClick={() => changeQty(i.productId, 1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={10} /></button>
+                  <input
+                    type="number"
+                    value={i.unitPrice}
+                    onChange={(e) => changePrice(i.productId, e.target.value)}
+                    className="w-16 border rounded px-1 py-0.5 text-xs"
+                    style={inputStyle}
+                    title="Prix unitaire"
+                  />
                   <button onClick={() => removeItem(i.productId)}><X size={13} color={C.danger} /></button>
                 </li>
               ))}
             </ul>
+          )}
+          {items.length > 0 && (
+            <div className="flex items-center justify-between text-sm mb-4" style={{ color: C.ink }}>
+              <span>Montant du colis</span>
+              <span style={monoFont}>{fmt(cartMontant)} DHS</span>
+            </div>
           )}
           <Field label="Client / destinataire">
             <select className={inputClass} style={{ ...inputStyle, marginBottom: 10 }} value={clientId} onChange={(e) => {
@@ -2555,29 +2631,89 @@ function Livraison({ db, persist, notify, log }) {
             </select>
           </Field>
           <button onClick={createBL} className="w-full py-2.5 rounded-md text-sm text-white flex items-center justify-center gap-2" style={{ background: C.accent }}>
-            Créer le bon <ChevronRight size={14} />
+            Créer le colis <ChevronRight size={14} />
           </button>
         </div>
       </div>
 
-      <div className="space-y-3">
-        {[...db.deliveryNotes].reverse().map((b) => (
-          <div key={b.id} className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
-            <div>
-              <div style={monoFont} className="text-sm">{b.number}</div>
-              <div style={{ color: C.inkSoft }} className="text-xs">{b.client} · {b.date} · {b.items.length} article(s)</div>
+      {/* Suivi de colis */}
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Suivi de colis</div>
+      <div className="space-y-3 mb-10">
+        {[...db.deliveryNotes].reverse().map((b) => {
+          const c = b.clientId ? db.clients.find((x) => x.id === b.clientId) : null;
+          return (
+            <div key={b.id} className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+              <div>
+                <div style={monoFont} className="text-sm">{b.number}</div>
+                <div style={{ color: C.inkSoft }} className="text-xs">
+                  {b.client} · {b.date} · {b.items.length} article(s) · {fmt(b.montant || 0)} DHS
+                  {c && <> · {PAYMENT_MODE_LABELS[c.paymentMode || "surplace"]}</>}
+                </div>
+              </div>
+              <Stamp
+                status={b.status === "livre" ? "paid" : b.status === "echec" ? "returned" : "pending"}
+                labels={["LIVRÉ", "EN ATTENTE"]}
+              />
+              {b.status === "attente" && (
+                <div className="flex gap-2">
+                  <button onClick={() => markDelivered(b.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
+                    Marquer livré
+                  </button>
+                  <button onClick={() => markEchec(b.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
+                    Échec de livraison
+                  </button>
+                </div>
+              )}
             </div>
-            <Stamp status={b.status === "delivered" ? "paid" : "pending"} labels={["LIVRÉ", "EN PRÉPARATION"]} />
-            {b.status !== "delivered" && (
-              <button onClick={() => markDelivered(b.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                Marquer livré
-              </button>
-            )}
-          </div>
-        ))}
+          );
+        })}
         {db.deliveryNotes.length === 0 && (
-          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun bon de livraison pour l'instant.</div>
+          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun colis pour l'instant.</div>
         )}
+      </div>
+
+      {/* Totaux par client, selon leur mode de paiement */}
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Total dû par client</div>
+      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+              <td className="px-4 py-3">Client</td>
+              <td className="px-4 py-3">Mode de paiement</td>
+              <td className="px-4 py-3">Solde dû</td>
+              <td className="px-4 py-3">Encaisser</td>
+            </tr>
+          </thead>
+          <tbody>
+            {clientsAvecColis.map((c) => (
+              <tr key={c.id} className="border-b" style={{ borderColor: C.border }}>
+                <td className="px-4 py-3" style={{ color: C.ink }}>{c.name}</td>
+                <td className="px-4 py-3 text-xs" style={{ color: C.inkSoft }}>{PAYMENT_MODE_LABELS[c.paymentMode || "surplace"]}</td>
+                <td className="px-4 py-3" style={{ ...monoFont, color: (c.balanceDue || 0) > 0 ? C.danger : C.success }}>{fmt(c.balanceDue || 0)} DHS</td>
+                <td className="px-4 py-3">
+                  {(c.balanceDue || 0) > 0 && (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        placeholder="Montant"
+                        value={payAmounts[c.id] || ""}
+                        onChange={(e) => setPayAmounts((p) => ({ ...p, [c.id]: e.target.value }))}
+                        className="w-24 border rounded px-2 py-1 text-xs"
+                        style={inputStyle}
+                      />
+                      <button onClick={() => encaisser(c)} className="text-xs px-2 py-1 rounded-md border" style={{ borderColor: C.accent, color: C.accent }}>
+                        OK
+                      </button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {clientsAvecColis.length === 0 && (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun client avec des colis pour l'instant.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
