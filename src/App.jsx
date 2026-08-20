@@ -300,6 +300,23 @@ export default function App() {
     if (session) sbSaveBackup(session, next); // sauvegarde cloud automatique, en arrière-plan
   };
 
+  // Synchronisation automatique : vérifie toutes les 20s si un autre appareil a mis à jour les données
+  useEffect(() => {
+    if (!session) return;
+    const t = setInterval(async () => {
+      const cloudDb = await sbLoadLatestBackup(session);
+      if (cloudDb && JSON.stringify(cloudDb) !== JSON.stringify(db)) {
+        setDb(cloudDb);
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudDb));
+        } catch (e) {
+          console.error("Storage error", e);
+        }
+      }
+    }, 20000);
+    return () => clearInterval(t);
+  }, [session, db]);
+
   const notify = (msg, undo) => {
     setToast({ msg, undo });
     setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), undo ? 6000 : 2200);
@@ -418,7 +435,7 @@ export default function App() {
         {tab === "dashboard" && <Dashboard db={db} />}
         {tab === "rapports" && <Rapports db={db} />}
         {tab === "devis" && <Devis db={db} persist={persist} notify={notify} log={log} session={session} />}
-        {tab === "achats" && <Achats db={db} persist={persist} notify={notify} />}
+        {tab === "achats" && <Achats db={db} persist={persist} notify={notify} log={log} />}
         {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} session={session} />}
         {tab === "livraison" && <Livraison db={db} persist={persist} notify={notify} log={log} />}
         {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} />}
@@ -1010,6 +1027,72 @@ function Stock({ db, persist, notify, log, session }) {
   const [expandedId, setExpandedId] = useState(null);
   const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "" });
   const [uploading, setUploading] = useState(false);
+  const importInputRef = useRef(null);
+
+  const importProductsExcel = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        let products = [...db.products];
+        let added = 0, updated = 0, skipped = 0;
+        rows.forEach((r) => {
+          const name = String(r["Produit"] || r["Nom"] || r["Name"] || r["nom"] || "").trim();
+          if (!name) { skipped++; return; }
+          const sku = String(r["SKU"] || r["Sku"] || r["Référence"] || r["Reference"] || "").trim();
+          const barcode = String(r["Code-barres"] || r["Barcode"] || "").trim();
+          const category = String(r["Catégorie"] || r["Categorie"] || r["Category"] || "").trim();
+          const price = Number(r["Prix de vente"] || r["Prix"] || r["Price"] || 0);
+          const costPrice = Number(r["Coût d'achat"] || r["Cout d'achat"] || r["Cout"] || r["CostPrice"] || 0);
+          const qty = Number(r["Quantité"] || r["Quantite"] || r["Qty"] || r["Stock"] || 0);
+          const minQty = Number(r["Seuil min."] || r["Seuil min"] || r["MinQty"] || 5);
+
+          const existing = (sku && products.find((p) => p.sku === sku)) || products.find((p) => p.name.toLowerCase() === name.toLowerCase());
+          if (existing) {
+            products = products.map((p) =>
+              p.id === existing.id
+                ? {
+                    ...p,
+                    name,
+                    category: category || p.category,
+                    price: price || p.price,
+                    costPrice: costPrice || p.costPrice,
+                    qty: r["Quantité"] || r["Quantite"] || r["Qty"] || r["Stock"] ? qty : p.qty,
+                    minQty: minQty || p.minQty,
+                    barcode: barcode || p.barcode,
+                  }
+                : p
+            );
+            updated++;
+          } else {
+            products.push({
+              id: uid(),
+              name,
+              sku: sku || "SKU-" + uid().toUpperCase().slice(0, 5),
+              barcode: barcode || uidBarcode(),
+              category: category || "Général",
+              price,
+              costPrice,
+              qty,
+              minQty: minQty || 5,
+              image: "",
+              variants: [],
+            });
+            added++;
+          }
+        });
+        persist({ ...db, products });
+        if (log) log("import_products", "products", "-", { added, updated, skipped });
+        notify(`Import terminé : ${added} ajouté(s), ${updated} mis à jour${skipped ? `, ${skipped} ligne(s) ignorée(s)` : ""}`);
+      } catch (e) {
+        notify("Fichier Excel invalide ou illisible");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const handleImageUpload = async (file) => {
     if (!file) return;
@@ -1269,39 +1352,58 @@ function Stock({ db, persist, notify, log, session }) {
           <Search size={14} color={C.inkSoft} />
           <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <button
-          onClick={() => {
-            const rows = [];
-            db.products.forEach((p) => {
-              if (p.variants && p.variants.length > 0) {
-                p.variants.forEach((v) => {
-                  rows.push({
-                    Produit: p.name, Variante: variantLabel(v), SKU: v.sku, "Code-barres": v.barcode,
-                    Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
-                    Quantité: v.qty, "Seuil min.": p.minQty,
-                    Statut: v.qty <= 0 ? "Rupture" : v.qty <= p.minQty ? "Stock bas" : "OK",
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            ref={importInputRef}
+            accept=".xlsx,.xls,.csv"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              importProductsExcel(e.target.files[0]);
+              e.target.value = "";
+            }}
+          />
+          <button
+            onClick={() => importInputRef.current && importInputRef.current.click()}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
+            style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+          >
+            <Upload size={14} /> Importer (Excel)
+          </button>
+          <button
+            onClick={() => {
+              const rows = [];
+              db.products.forEach((p) => {
+                if (p.variants && p.variants.length > 0) {
+                  p.variants.forEach((v) => {
+                    rows.push({
+                      Produit: p.name, Variante: variantLabel(v), SKU: v.sku, "Code-barres": v.barcode,
+                      Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
+                      Quantité: v.qty, "Seuil min.": p.minQty,
+                      Statut: v.qty <= 0 ? "Rupture" : v.qty <= p.minQty ? "Stock bas" : "OK",
+                    });
                   });
-                });
-              } else {
-                rows.push({
-                  Produit: p.name, Variante: "", SKU: p.sku, "Code-barres": p.barcode || "",
-                  Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
-                  Quantité: p.qty, "Seuil min.": p.minQty,
-                  Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
-                });
-              }
-            });
-            const ws = XLSX.utils.json_to_sheet(rows);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "Stock");
-            XLSX.writeFile(wb, `stock-complet-${today()}.xlsx`);
-            notify("Export Excel téléchargé");
-          }}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-          style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
-        >
-          <Download size={14} /> Exporter (Excel)
-        </button>
+                } else {
+                  rows.push({
+                    Produit: p.name, Variante: "", SKU: p.sku, "Code-barres": p.barcode || "",
+                    Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
+                    Quantité: p.qty, "Seuil min.": p.minQty,
+                    Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
+                  });
+                }
+              });
+              const ws = XLSX.utils.json_to_sheet(rows);
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, "Stock");
+              XLSX.writeFile(wb, `stock-complet-${today()}.xlsx`);
+              notify("Export Excel téléchargé");
+            }}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
+            style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+          >
+            <Download size={14} /> Exporter (Excel)
+          </button>
+        </div>
       </div>
 
       <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
@@ -1448,11 +1550,72 @@ function Stock({ db, persist, notify, log, session }) {
 }
 
 // ---------- Achats ----------
-function Achats({ db, persist, notify }) {
+function Achats({ db, persist, notify, log }) {
   const [form, setForm] = useState({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
   const useExisting = form.productId !== "";
   const selectedProduct = useExisting ? db.products.find((p) => p.id === form.productId) : null;
   const needsVariant = selectedProduct && selectedProduct.variants && selectedProduct.variants.length > 0;
+  const importInputRef = useRef(null);
+
+  const importAchatsExcel = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target.result, { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        let products = [...db.products];
+        let suppliers = [...db.suppliers];
+        let newPurchases = [];
+        let created = 0, matched = 0, skipped = 0;
+
+        rows.forEach((r) => {
+          const supplierName = String(r["Fournisseur"] || r["Supplier"] || "").trim();
+          const productLabel = String(r["Produit"] || r["Product"] || r["SKU"] || "").trim();
+          const qty = Number(r["Quantité"] || r["Quantite"] || r["Qty"] || 0);
+          const unitCost = Number(r["Coût unitaire"] || r["Cout unitaire"] || r["Prix unitaire"] || r["UnitCost"] || 0);
+          const paymentRaw = String(r["Paiement"] || r["Payment"] || "comptant").trim().toLowerCase();
+          const payment = paymentRaw.includes("credit") || paymentRaw.includes("crédit") ? "credit" : "cash";
+
+          if (!supplierName || !productLabel || !qty || !unitCost) { skipped++; return; }
+
+          // Fournisseur : cherche ou crée
+          let supplier = suppliers.find((s) => s.name.toLowerCase() === supplierName.toLowerCase());
+          if (!supplier) {
+            supplier = { id: uid(), name: supplierName, phone: "", balanceDue: 0 };
+            suppliers.push(supplier);
+          }
+
+          // Produit : cherche par SKU ou nom, sinon crée
+          let product = products.find((p) => p.sku.toLowerCase() === productLabel.toLowerCase() || p.name.toLowerCase() === productLabel.toLowerCase());
+          if (product) {
+            products = adjustStock(products, product.id, null, qty);
+            products = products.map((p) => (p.id === product.id ? { ...p, costPrice: unitCost } : p));
+            matched++;
+          } else {
+            product = { id: uid(), name: productLabel, sku: "SKU-" + uid().toUpperCase().slice(0, 5), barcode: uidBarcode(), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5, variants: [] };
+            products.push(product);
+            created++;
+          }
+
+          const total = qty * unitCost;
+          if (payment === "credit") {
+            suppliers = suppliers.map((s) => (s.id === supplier.id ? { ...s, balanceDue: (s.balanceDue || 0) + total } : s));
+          }
+          newPurchases.push({ id: uid(), date: today(), productName: product.name, supplier: supplier.name, supplierId: supplier.id, qty, unitCost, total, payment });
+        });
+
+        persist({ ...db, products, suppliers, purchases: [...db.purchases, ...newPurchases] });
+        if (log) log("import_achats", "purchases", "-", { lignes: newPurchases.length, created, matched, skipped });
+        notify(`Import terminé : ${newPurchases.length} achat(s) enregistré(s) (${created} nouveau(x) produit(s))${skipped ? `, ${skipped} ligne(s) ignorée(s)` : ""}`);
+      } catch (e) {
+        notify("Fichier Excel invalide ou illisible");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   const submit = () => {
     const supplierLabel = form.supplierId
@@ -1503,6 +1666,26 @@ function Achats({ db, persist, notify }) {
   return (
     <div>
       <SectionTitle eyebrow="Approvisionnement" title="Achats" />
+
+      <div className="flex justify-end mb-3">
+        <input
+          type="file"
+          ref={importInputRef}
+          accept=".xlsx,.xls,.csv"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            importAchatsExcel(e.target.files[0]);
+            e.target.value = "";
+          }}
+        />
+        <button
+          onClick={() => importInputRef.current && importInputRef.current.click()}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
+          style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+        >
+          <Upload size={14} /> Importer facture fournisseur (Excel)
+        </button>
+      </div>
 
       <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
