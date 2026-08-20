@@ -17,26 +17,72 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs
 import JsBarcode from "jsbarcode";
 import { Html5Qrcode } from "html5-qrcode";
 
-// ---- Design tokens ----
+// ---- Design tokens : identité Electrolik (noir / or, typographie tech) ----
 const C = {
-  ink: "#161B26",
-  inkSoft: "#5B6274",
-  paper: "#EFF1F5",
+  ink: "#14161B",
+  inkSoft: "#6B7280",
+  paper: "#F4F5F7",
   paperCard: "#FFFFFF",
-  sidebar: "#12182B",
-  sidebarAlt: "#1B2340",
-  sidebarText: "#AEB4CC",
-  accent: "#C97B3D",
-  accentSoft: "#F3E1CC",
-  success: "#3F7859",
-  successSoft: "#DCEAE2",
-  danger: "#B4453A",
-  dangerSoft: "#F5DEDB",
-  border: "#DBDFE7",
+  sidebar: "#0C0D10",
+  sidebarAlt: "#1C1D22",
+  sidebarText: "#9CA3AF",
+  accent: "#F2B705",
+  accentSoft: "#FDF1CC",
+  success: "#1FA97A",
+  successSoft: "#DCF5EB",
+  danger: "#E5484D",
+  dangerSoft: "#FBE3E4",
+  border: "#E4E6EB",
 };
 
-const displayFont = { fontFamily: "'Newsreader', Georgia, serif" };
+const displayFont = { fontFamily: "'Space Grotesk', ui-sans-serif, sans-serif", fontWeight: 700 };
+const bodyFont = { fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" };
 const monoFont = { fontFamily: "'JetBrains Mono', ui-monospace, monospace" };
+
+function useGoogleFonts() {
+  useEffect(() => {
+    if (document.getElementById("electrolik-fonts")) return;
+    const link = document.createElement("link");
+    link.id = "electrolik-fonts";
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap";
+    document.head.appendChild(link);
+
+    if (document.getElementById("electrolik-global-style")) return;
+    const style = document.createElement("style");
+    style.id = "electrolik-global-style";
+    style.textContent = `
+      * { box-sizing: border-box; }
+      body { -webkit-font-smoothing: antialiased; }
+      ::selection { background: ${C.accent}; color: #14161B; }
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #D8DBE2; border-radius: 8px; }
+      ::-webkit-scrollbar-thumb:hover { background: #B9BEC9; }
+
+      .rounded-xl.border {
+        box-shadow: 0 1px 2px rgba(12,13,16,0.04), 0 10px 24px -14px rgba(12,13,16,0.14);
+        transition: box-shadow .18s ease, transform .18s ease;
+      }
+      .rounded-xl.border:hover {
+        box-shadow: 0 2px 6px rgba(12,13,16,0.06), 0 16px 32px -14px rgba(12,13,16,0.18);
+      }
+      button { transition: background .15s ease, color .15s ease, opacity .15s ease, transform .1s ease, box-shadow .15s ease; }
+      button:active { transform: scale(0.97); }
+      input, select, textarea { transition: border-color .15s ease, box-shadow .15s ease; }
+      input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: ${C.accent} !important;
+        box-shadow: 0 0 0 3px ${C.accentSoft};
+      }
+      .nav-btn { position: relative; transition: background .15s ease, color .15s ease; }
+      .nav-btn:hover { background: rgba(255,255,255,0.06) !important; color: #fff !important; }
+      .ek-badge { transition: transform .15s ease; }
+      .ek-badge:hover { transform: rotate(0deg) scale(1.03); }
+    `;
+    document.head.appendChild(style);
+  }, []);
+}
 
 function uidBarcode() {
   // EAN-13-like 13 digit code, generated locally (not a registered GS1 prefix)
@@ -274,6 +320,7 @@ const DEFAULT_DB = {
 };
 
 export default function App() {
+  useGoogleFonts();
   const [db, setDb] = useState(DEFAULT_DB);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("dashboard");
@@ -378,7 +425,7 @@ export default function App() {
 
   if (loading) {
     return (
-      <div style={{ background: C.paper, minHeight: "100vh" }} className="flex items-center justify-center">
+      <div style={{ background: C.paper, minHeight: "100vh", ...bodyFont }} className="flex items-center justify-center">
         <div style={{ ...monoFont, color: C.inkSoft }} className="text-sm tracking-widest uppercase">
           Chargement…
         </div>
@@ -387,9 +434,9 @@ export default function App() {
   }
 
   return (
-    <div style={{ background: C.paper, minHeight: "100vh" }} className="flex flex-col md:flex-row">
+    <div style={{ background: C.paper, minHeight: "100vh", ...bodyFont }} className="flex flex-col md:flex-row">
       {/* Sidebar */}
-      <aside style={{ background: C.sidebar }} className="md:w-64 w-full flex md:flex-col shrink-0">
+      <aside style={{ background: `linear-gradient(180deg, ${C.sidebar} 0%, #08090B 100%)` }} className="md:w-64 w-full flex md:flex-col shrink-0">
         <div className="p-6 hidden md:block">
           <img src="/logo.png" alt="Electrolik" style={{ width: 150, height: "auto" }} />
           <div style={{ ...monoFont, color: C.sidebarText }} className="text-[10px] tracking-[0.2em] uppercase mt-2">
@@ -404,7 +451,7 @@ export default function App() {
               <button
                 key={n.id}
                 onClick={() => setTab(n.id)}
-                className="flex items-center gap-3 px-4 md:px-3 py-3 md:py-2.5 md:rounded-md whitespace-nowrap"
+                className="nav-btn flex items-center gap-3 px-4 md:px-3 py-3 md:py-2.5 md:rounded-xl whitespace-nowrap"
                 style={{
                   background: active ? C.sidebarAlt : "transparent",
                   color: active ? "#fff" : C.sidebarText,
@@ -509,7 +556,7 @@ function CameraScanner({ onDetected, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,24,43,0.85)" }}>
-      <div className="w-full max-w-sm rounded-lg p-4" style={{ background: "#fff" }}>
+      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: "#fff" }}>
         <div className="flex items-center justify-between mb-3">
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">Scanner un code-barres</div>
           <button onClick={onClose}><X size={16} color={C.inkSoft} /></button>
@@ -544,8 +591,8 @@ function Login({ onLogin }) {
   };
 
   return (
-    <div style={{ background: C.sidebar, minHeight: "100vh" }} className="flex items-center justify-center p-5">
-      <div className="w-full max-w-sm rounded-lg p-8" style={{ background: "#fff" }}>
+    <div style={{ background: C.sidebar, minHeight: "100vh", ...bodyFont }} className="flex items-center justify-center p-5">
+      <div className="w-full max-w-sm rounded-xl p-8" style={{ background: "#fff" }}>
         <img src="/logo.png" alt="Electrolik" style={{ display: "block", width: 190, height: "auto", margin: "0 auto 6px" }} />
         <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-[0.2em] mb-6 text-center">
           Gestion Pro — Connexion sécurisée
@@ -591,7 +638,7 @@ function AuditLog({ session }) {
   return (
     <div>
       <SectionTitle eyebrow="Sécurité" title="Journal d'audit" />
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -626,7 +673,7 @@ function StatCard({ label, value, icon: Icon, tone = "default" }) {
   const bg = tone === "danger" ? C.dangerSoft : tone === "success" ? C.successSoft : "#fff";
   const iconColor = tone === "danger" ? C.danger : tone === "success" ? C.success : C.accent;
   return (
-    <div className="rounded-lg p-5 border" style={{ background: bg, borderColor: C.border }}>
+    <div className="rounded-xl p-5 border" style={{ background: bg, borderColor: C.border }}>
       <div className="flex items-center justify-between mb-3">
         <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-widest">
           {label}
@@ -647,7 +694,7 @@ function Stamp({ status, labels }) {
   const text = returned ? "RETOURNÉ" : labels ? (paid ? labels[0] : labels[1]) : paid ? "PAYÉ" : "EN ATTENTE";
   return (
     <span
-      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2"
+      className="ek-badge inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2"
       style={{ ...monoFont, fontSize: 10, letterSpacing: "0.12em", color, borderColor: color, transform: "rotate(-2deg)" }}
     >
       {returned ? <RotateCcw size={11} /> : paid ? <CheckCircle2 size={11} /> : <Clock size={11} />}
@@ -663,7 +710,7 @@ function SectionTitle({ eyebrow, title, action }) {
         <div style={{ ...monoFont, color: C.accent, fontSize: 11 }} className="uppercase tracking-[0.2em] mb-1">
           {eyebrow}
         </div>
-        <h1 style={{ ...displayFont, color: C.ink }} className="text-3xl italic">{title}</h1>
+        <h1 style={{ ...displayFont, color: C.ink, letterSpacing: "-0.01em" }} className="text-3xl">{title}</h1>
       </div>
       {action}
     </div>
@@ -758,7 +805,7 @@ function Dashboard({ db }) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Évolution des ventes</div>
           {trend.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -775,7 +822,7 @@ function Dashboard({ db }) {
           )}
         </div>
 
-        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Top produits</div>
           {topProducts.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -792,7 +839,7 @@ function Dashboard({ db }) {
         </div>
       </div>
 
-      <div className="rounded-lg border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Ventes par canal</div>
         {byChannel.length === 0 ? (
           <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -812,7 +859,7 @@ function Dashboard({ db }) {
         )}
       </div>
 
-      <div className="rounded-lg border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Ventes par vendeur</div>
         {byVendor.length === 0 ? (
           <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -833,7 +880,7 @@ function Dashboard({ db }) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Alertes stock</div>
           {rupture.length === 0 && lowStock.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Aucune alerte, tout est bien approvisionné.</p>
@@ -855,7 +902,7 @@ function Dashboard({ db }) {
           )}
         </div>
 
-        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Dernières ventes</div>
           {db.sales.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée pour l'instant.</p>
@@ -972,7 +1019,7 @@ function Rapports({ db }) {
         <StatCard label="Panier moyen" value={current && current.count ? fmt(Math.round(current.total / current.count)) + " DHS" : "—"} icon={Receipt} />
       </div>
 
-      <div className="rounded-lg border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
           {view === "week" ? "Chiffre d'affaires par semaine" : "Chiffre d'affaires par mois"}
         </div>
@@ -991,7 +1038,7 @@ function Rapports({ db }) {
         )}
       </div>
 
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -1277,7 +1324,7 @@ function Stock({ db, persist, notify, log, session }) {
         }
       />
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: editingId ? C.accent : C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: editingId ? C.accent : C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
           {editingId ? "Modifier le produit" : "Nouveau produit"}
         </div>
@@ -1437,7 +1484,7 @@ function Stock({ db, persist, notify, log, session }) {
         </div>
       </div>
 
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b" >
@@ -1860,7 +1907,7 @@ function Achats({ db, persist, notify, log }) {
       </div>
 
       {pdfReview && (
-        <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
+        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Vérifier avant import (lecture PDF)</div>
           <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
             Lecture automatique du fichier — corrigez les désignations, quantités ou prix si besoin avant de confirmer. Rien n'est ajouté au stock tant que vous n'avez pas cliqué sur "Confirmer".
@@ -1924,7 +1971,7 @@ function Achats({ db, persist, notify, log }) {
         </div>
       )}
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
         <div className="grid md:grid-cols-6 gap-3">
           <Field label="Produit existant">
@@ -1977,7 +2024,7 @@ function Achats({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2170,7 +2217,7 @@ function Ventes({ db, persist, notify, session }) {
       {showCamera && <CameraScanner onDetected={handleCameraDetected} onClose={() => setShowCamera(false)} />}
 
       {pickingProduct && (
-        <div className="rounded-lg border p-4 mb-4" style={{ borderColor: C.accent, background: "#fff" }}>
+        <div className="rounded-xl border p-4 mb-4" style={{ borderColor: C.accent, background: "#fff" }}>
           <div className="flex items-center justify-between mb-3">
             <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">
               Choisir une variante — {pickingProduct.name}
@@ -2205,7 +2252,7 @@ function Ventes({ db, persist, notify, session }) {
                   key={p.id}
                   onClick={() => addToCart(p)}
                   disabled={qty <= 0}
-                  className="text-left rounded-lg border p-3 disabled:opacity-40 flex gap-3 items-center"
+                  className="text-left rounded-xl border p-3 disabled:opacity-40 flex gap-3 items-center"
                   style={{ borderColor: C.border, background: "#fff" }}
                 >
                   <div className="w-12 h-12 rounded-md border flex items-center justify-center overflow-hidden shrink-0" style={{ borderColor: C.border, background: C.paper }}>
@@ -2224,7 +2271,7 @@ function Ventes({ db, persist, notify, session }) {
           </div>
         </div>
 
-        <div className="rounded-lg border p-5 h-fit sticky top-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5 h-fit sticky top-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Panier</div>
           {cart.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
@@ -2395,8 +2442,8 @@ function Facturation({ db, persist, notify, log }) {
         <head>
           <title>${inv.number}</title>
           <style>
-            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 640px; margin: auto; }
-            h1 { font-style: italic; margin-bottom: 0; }
+            body { font-family: 'Inter', ui-sans-serif, sans-serif; color: #14161B; padding: 40px; max-width: 640px; margin: auto; }
+            h1 { font-family: 'Space Grotesk', ui-sans-serif, sans-serif; font-weight: 700; margin-bottom: 0; letter-spacing: -0.01em; }
             .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
             .legal { color: #5B6274; font-size: 11px; margin-top: 4px; }
             table { width: 100%; border-collapse: collapse; margin-top: 24px; }
@@ -2404,7 +2451,7 @@ function Facturation({ db, persist, notify, log }) {
             th:nth-child(2) { text-align: center; }
             th:nth-child(3), th:nth-child(4) { text-align: right; }
             tr td { border-bottom: 1px solid #EEE; }
-            .total { text-align: right; margin-top: 10px; font-size: 22px; font-style: italic; }
+            .total { text-align: right; margin-top: 10px; font-size: 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; }
             .stamp { display: inline-block; margin-top: 10px; padding: 4px 12px; border: 2px solid ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; color: ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; border-radius: 999px; font-size: 11px; letter-spacing: 0.1em; transform: rotate(-2deg); }
           </style>
         </head>
@@ -2449,7 +2496,7 @@ function Facturation({ db, persist, notify, log }) {
       />
       <div className="space-y-3">
         {[...db.invoices].reverse().map((inv) => (
-          <div key={inv.id} className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+          <div key={inv.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
             <div>
               <div style={monoFont} className="text-sm">{inv.number}</div>
               <div style={{ color: C.inkSoft }} className="text-xs">{inv.client} · {inv.date}{inv.soldBy ? ` · ${inv.soldBy}` : ""}</div>
@@ -2522,7 +2569,7 @@ function Clients({ db, persist, notify, log }) {
           </div>
         }
       />
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau client</div>
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Nom"><input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
@@ -2538,7 +2585,7 @@ function Clients({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2672,14 +2719,14 @@ function Fournisseurs({ db, persist, notify, log }) {
         <head>
           <title>Relevé — ${supplier.name}</title>
           <style>
-            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 760px; margin: auto; }
-            h1 { font-style: italic; margin-bottom: 0; }
+            body { font-family: '''Inter''', ui-sans-serif, sans-serif; color: #14161B; padding: 40px; max-width: 760px; margin: auto; }
+            h1 { font-family: '''Space Grotesk''', ui-sans-serif, sans-serif; font-weight: 700; margin-bottom: 0; letter-spacing: -0.01em; }
             .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
             table { width: 100%; border-collapse: collapse; margin-top: 24px; }
             th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
             th:nth-child(4), th:nth-child(5) { text-align: right; }
             tr td { border-bottom: 1px solid #EEE; }
-            .total { text-align: right; margin-top: 14px; font-size: 22px; font-style: italic; }
+            .total { text-align: right; margin-top: 14px; font-size: 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; }
           </style>
         </head>
         <body>
@@ -2729,7 +2776,7 @@ function Fournisseurs({ db, persist, notify, log }) {
           </div>
         }
       />
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau fournisseur</div>
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Nom"><input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
@@ -2740,7 +2787,7 @@ function Fournisseurs({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dette déjà existante (solde de départ)</div>
         <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
           Pour enregistrer un montant que vous devez déjà à un fournisseur (avant d'utiliser cette application). Cela n'affecte ni le stock ni les achats — uniquement le solde dû.
@@ -2764,7 +2811,7 @@ function Fournisseurs({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Enregistrer un paiement</div>
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Fournisseur">
@@ -2782,7 +2829,7 @@ function Fournisseurs({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-lg border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2817,7 +2864,7 @@ function Fournisseurs({ db, persist, notify, log }) {
       </div>
 
       <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique des paiements</div>
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2875,7 +2922,7 @@ function Cheques({ db, persist, notify, log }) {
   return (
     <div>
       <SectionTitle eyebrow="Trésorerie" title="Chèques" />
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau chèque</div>
         <div className="grid md:grid-cols-6 gap-3">
           <Field label="Type">
@@ -2897,7 +2944,7 @@ function Cheques({ db, persist, notify, log }) {
 
       <div className="space-y-3">
         {[...db.cheques].reverse().map((c) => (
-          <div key={c.id} className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+          <div key={c.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
             <div>
               <div className="flex items-center gap-2">
                 <span style={monoFont} className="text-sm">{c.number}</span>
@@ -2986,14 +3033,14 @@ function Devis({ db, persist, notify, log, session }) {
         <div className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {db.products.map((p) => (
-              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-lg border p-4" style={{ borderColor: C.border, background: "#fff" }}>
+              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: "#fff" }}>
                 <div className="text-sm mb-1" style={{ color: C.ink }}>{p.name}</div>
                 <div style={{ ...monoFont, color: C.accent }} className="text-sm">{fmt(p.price)} DHS</div>
               </button>
             ))}
           </div>
         </div>
-        <div className="rounded-lg border p-5 h-fit" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau devis</div>
           {cart.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
@@ -3031,7 +3078,7 @@ function Devis({ db, persist, notify, log, session }) {
 
       <div className="space-y-3">
         {[...db.quotes].reverse().map((q) => (
-          <div key={q.id} className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+          <div key={q.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
             <div>
               <div style={monoFont} className="text-sm">{q.number}</div>
               <div style={{ color: C.inkSoft }} className="text-xs">{q.client} · {q.date}</div>
@@ -3130,14 +3177,14 @@ function Livraison({ db, persist, notify, log }) {
         <div className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {db.products.map((p) => (
-              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-lg border p-4" style={{ borderColor: C.border, background: "#fff" }}>
+              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: "#fff" }}>
                 <div className="text-sm" style={{ color: C.ink }}>{p.name}</div>
                 <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · {fmt(p.price)} DHS</div>
               </button>
             ))}
           </div>
         </div>
-        <div className="rounded-lg border p-5 h-fit" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau colis</div>
           {items.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
@@ -3189,7 +3236,7 @@ function Livraison({ db, persist, notify, log }) {
         {[...db.deliveryNotes].reverse().map((b) => {
           const c = b.clientId ? db.clients.find((x) => x.id === b.clientId) : null;
           return (
-            <div key={b.id} className="rounded-lg border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+            <div key={b.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
               <div>
                 <div style={monoFont} className="text-sm">{b.number}</div>
                 <div style={{ color: C.inkSoft }} className="text-xs">
@@ -3221,7 +3268,7 @@ function Livraison({ db, persist, notify, log }) {
 
       {/* Totaux par client, selon leur mode de paiement */}
       <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Total dû par client</div>
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -3296,7 +3343,7 @@ function Equipe({ session, notify, log }) {
   return (
     <div>
       <SectionTitle eyebrow="Sécurité" title="Équipe" />
-      <div className="rounded-lg border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -3329,7 +3376,7 @@ function Equipe({ session, notify, log }) {
           </tbody>
         </table>
       </div>
-      <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Ajouter un membre</div>
         <p className="text-sm" style={{ color: C.inkSoft }}>
           Pour des raisons de sécurité, la création de nouveaux comptes se fait depuis Supabase :
@@ -3384,7 +3431,7 @@ function Charges({ db, persist, notify, log }) {
         }
       />
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvelle charge</div>
         <div className="grid md:grid-cols-4 gap-3">
           <Field label="Description">
@@ -3418,7 +3465,7 @@ function Charges({ db, persist, notify, log }) {
         </div>
       )}
 
-      <div className="rounded-lg border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -3519,7 +3566,7 @@ function Finance({ db, persist, notify, log, session }) {
     <div>
       <SectionTitle eyebrow="Finances" title="Comptabilité & capital" />
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4 flex items-center gap-2">
           <Settings size={14} /> Informations de l'entreprise (facture)
         </div>
@@ -3554,7 +3601,7 @@ function Finance({ db, persist, notify, log, session }) {
         </p>
       </div>
 
-      <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
           Capital initial
         </div>
@@ -3592,19 +3639,19 @@ function Finance({ db, persist, notify, log, session }) {
       </p>
 
       <div className="grid md:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Créances clients (à recevoir)</div>
           <div style={{ ...displayFont, color: C.success }} className="text-2xl">{fmt(db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0))} DHS</div>
           <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vos clients vous doivent (ventes à crédit).</p>
         </div>
-        <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dettes fournisseurs (à payer)</div>
           <div style={{ ...displayFont, color: C.danger }} className="text-2xl">{fmt(db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0))} DHS</div>
           <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vous devez à vos fournisseurs (achats à crédit).</p>
         </div>
       </div>
 
-      <div className="rounded-lg border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div className="px-4 py-3 border-b" style={{ ...monoFont, fontSize: 11, color: C.inkSoft, borderColor: C.border }} >
           BILAN ANNUEL
         </div>
@@ -3641,7 +3688,7 @@ function Finance({ db, persist, notify, log, session }) {
         Bénéfice = chiffre d'affaires des ventes − coûts des achats, pour chaque année. Le capital actuel additionne le capital initial et le bénéfice net cumulé sur toute la période.
       </p>
 
-      <div className="rounded-lg border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Sauvegarde des données</div>
         <div className="flex flex-wrap gap-3">
           <button
