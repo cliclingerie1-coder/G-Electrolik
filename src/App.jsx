@@ -12,6 +12,8 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
 } from "recharts";
 import * as XLSX from "xlsx";
+import * as pdfjsLib from "pdfjs-dist";
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 import JsBarcode from "jsbarcode";
 import { Html5Qrcode } from "html5-qrcode";
 
@@ -1551,12 +1553,135 @@ function Stock({ db, persist, notify, log, session }) {
 }
 
 // ---------- Achats ----------
+// ---------- Import PDF de facture fournisseur (lecture heuristique) ----------
+async function extractPdfRows(file) {
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  const rows = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const items = content.items
+      .map((it) => ({ text: it.str, x: it.transform[4], y: it.transform[5] }))
+      .filter((it) => it.text.trim() !== "");
+    const groups = {};
+    items.forEach((it) => {
+      const key = Math.round(it.y / 3) * 3;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(it);
+    });
+    const ys = Object.keys(groups).map(Number).sort((a, b) => b - a);
+    ys.forEach((y) => {
+      const rowItems = groups[y].sort((a, b) => a.x - b.x);
+      const rowText = rowItems.map((it) => it.text).join(" ").replace(/\s+/g, " ").trim();
+      if (rowText) rows.push(rowText);
+    });
+  }
+  return rows;
+}
+
+function parsePdfInvoiceLines(rows) {
+  const candidates = [];
+  rows.forEach((line) => {
+    if (/total|sous.?total|tva|remise|net.?à.?payer|montant\s*ht|montant\s*ttc|^page\s/i.test(line)) return;
+    const numMatches = line.match(/\d+[.,]?\d*/g) || [];
+    const numbers = numMatches.map((n) => parseFloat(n.replace(",", "."))).filter((n) => !isNaN(n));
+    if (numbers.length < 2) return;
+    let designation = line.replace(/\d+[.,]?\d*/g, " ").replace(/\s{2,}/g, " ").trim();
+    if (designation.length < 3) return;
+
+    let qty, unitPrice, total;
+    if (numbers.length >= 3) {
+      total = numbers[numbers.length - 1];
+      unitPrice = numbers[numbers.length - 2];
+      qty = numbers.find((n) => Number.isInteger(n) && n > 0 && n < 10000) || 1;
+      if (unitPrice > 0 && Math.abs(qty * unitPrice - total) > total * 0.05) {
+        qty = Math.max(1, Math.round(total / unitPrice));
+      }
+    } else {
+      qty = 1;
+      unitPrice = numbers[numbers.length - 1];
+    }
+    if (!unitPrice || unitPrice <= 0) return;
+    candidates.push({ designation, qty: qty || 1, unitPrice: Number(unitPrice.toFixed(2)) });
+  });
+  return candidates;
+}
+
 function Achats({ db, persist, notify, log }) {
   const [form, setForm] = useState({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
   const useExisting = form.productId !== "";
   const selectedProduct = useExisting ? db.products.find((p) => p.id === form.productId) : null;
   const needsVariant = selectedProduct && selectedProduct.variants && selectedProduct.variants.length > 0;
   const importInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
+  const [pdfReview, setPdfReview] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
+
+  const handlePdfFile = async (file) => {
+    if (!file) return;
+    setPdfLoading(true);
+    try {
+      const rows = await extractPdfRows(file);
+      const candidates = parsePdfInvoiceLines(rows);
+      if (candidates.length === 0) {
+        notify("Aucune ligne détectée dans ce PDF — vérifiez le fichier ou utilisez l'import Excel");
+        setPdfLoading(false);
+        return;
+      }
+      setPdfReview({ supplierId: "", supplierName: "", payment: "cash", lines: candidates.map((c) => ({ ...c, include: true })) });
+    } catch (e) {
+      notify("Impossible de lire ce PDF");
+    }
+    setPdfLoading(false);
+  };
+
+  const updatePdfLine = (idx, field, value) => {
+    setPdfReview((r) => ({ ...r, lines: r.lines.map((l, i) => (i === idx ? { ...l, [field]: value } : l)) }));
+  };
+  const removePdfLine = (idx) => setPdfReview((r) => ({ ...r, lines: r.lines.filter((_, i) => i !== idx) }));
+
+  const confirmPdfImport = () => {
+    const supplierLabel = pdfReview.supplierId ? db.suppliers.find((s) => s.id === pdfReview.supplierId)?.name : pdfReview.supplierName.trim();
+    if (!supplierLabel) return notify("Nom du fournisseur requis");
+    const activeLines = pdfReview.lines.filter((l) => l.include && l.designation && Number(l.qty) > 0 && Number(l.unitPrice) > 0);
+    if (activeLines.length === 0) return notify("Aucune ligne valide à importer");
+
+    let products = [...db.products];
+    let suppliers = [...db.suppliers];
+    let supplier = pdfReview.supplierId
+      ? suppliers.find((s) => s.id === pdfReview.supplierId)
+      : suppliers.find((s) => s.name.toLowerCase() === supplierLabel.toLowerCase());
+    if (!supplier) {
+      supplier = { id: uid(), name: supplierLabel, phone: "", balanceDue: 0 };
+      suppliers.push(supplier);
+    }
+    let newPurchases = [];
+    let created = 0, matched = 0;
+    activeLines.forEach((l) => {
+      const qty = Number(l.qty);
+      const unitCost = Number(l.unitPrice);
+      let product = products.find((p) => p.name.toLowerCase() === l.designation.toLowerCase());
+      if (product) {
+        products = adjustStock(products, product.id, null, qty);
+        products = products.map((p) => (p.id === product.id ? { ...p, costPrice: unitCost } : p));
+        matched++;
+      } else {
+        product = { id: uid(), name: l.designation, sku: "SKU-" + uid().toUpperCase().slice(0, 5), barcode: uidBarcode(), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5, variants: [] };
+        products.push(product);
+        created++;
+      }
+      const total = qty * unitCost;
+      if (pdfReview.payment === "credit") {
+        suppliers = suppliers.map((s) => (s.id === supplier.id ? { ...s, balanceDue: (s.balanceDue || 0) + total } : s));
+      }
+      newPurchases.push({ id: uid(), date: today(), productName: product.name, supplier: supplier.name, supplierId: supplier.id, qty, unitCost, total, payment: pdfReview.payment });
+    });
+    persist({ ...db, products, suppliers, purchases: [...db.purchases, ...newPurchases] });
+    if (log) log("import_achats_pdf", "purchases", "-", { lignes: newPurchases.length, created, matched });
+    notify(`Import PDF terminé : ${newPurchases.length} article(s), ${created} nouveau(x) produit(s), stock mis à jour`);
+    setPdfReview(null);
+  };
 
   const importAchatsExcel = (file) => {
     if (!file) return;
@@ -1668,7 +1793,25 @@ function Achats({ db, persist, notify, log }) {
     <div>
       <SectionTitle eyebrow="Approvisionnement" title="Achats" />
 
-      <div className="flex justify-end mb-3">
+      <div className="flex justify-end gap-2 mb-3 flex-wrap">
+        <input
+          type="file"
+          ref={pdfInputRef}
+          accept=".pdf"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            handlePdfFile(e.target.files[0]);
+            e.target.value = "";
+          }}
+        />
+        <button
+          onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
+          disabled={pdfLoading}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
+          style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+        >
+          <FileText size={14} /> {pdfLoading ? "Lecture en cours…" : "Importer facture fournisseur (PDF)"}
+        </button>
         <input
           type="file"
           ref={importInputRef}
@@ -1687,6 +1830,71 @@ function Achats({ db, persist, notify, log }) {
           <Upload size={14} /> Importer facture fournisseur (Excel)
         </button>
       </div>
+
+      {pdfReview && (
+        <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Vérifier avant import (lecture PDF)</div>
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+            Lecture automatique du fichier — corrigez les désignations, quantités ou prix si besoin avant de confirmer. Rien n'est ajouté au stock tant que vous n'avez pas cliqué sur "Confirmer".
+          </p>
+          <div className="grid md:grid-cols-3 gap-3 mb-4">
+            <Field label="Fournisseur existant">
+              <select
+                className={inputClass}
+                style={inputStyle}
+                value={pdfReview.supplierId}
+                onChange={(e) => {
+                  const sup = db.suppliers.find((x) => x.id === e.target.value);
+                  setPdfReview((r) => ({ ...r, supplierId: e.target.value, supplierName: sup ? sup.name : r.supplierName }));
+                }}
+              >
+                <option value="">— Nouveau fournisseur —</option>
+                {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </Field>
+            {!pdfReview.supplierId && (
+              <Field label="Nom du fournisseur">
+                <input className={inputClass} style={inputStyle} value={pdfReview.supplierName} onChange={(e) => setPdfReview((r) => ({ ...r, supplierName: e.target.value }))} />
+              </Field>
+            )}
+            <Field label="Paiement">
+              <select className={inputClass} style={inputStyle} value={pdfReview.payment} onChange={(e) => setPdfReview((r) => ({ ...r, payment: e.target.value }))}>
+                <option value="cash">Payé comptant</option>
+                <option value="credit">À crédit (je dois au fournisseur)</option>
+              </select>
+            </Field>
+          </div>
+          <div className="space-y-2 mb-4">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-widest" style={{ ...monoFont, color: C.inkSoft }}>
+              <span className="w-5"></span>
+              <span className="flex-1">Désignation</span>
+              <span className="w-20">Qté</span>
+              <span className="w-24">Prix unit.</span>
+              <span className="w-5"></span>
+            </div>
+            {pdfReview.lines.map((l, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <input type="checkbox" checked={l.include} onChange={(e) => updatePdfLine(idx, "include", e.target.checked)} />
+                <input className="flex-1 border rounded-md px-2 py-1.5 text-sm" style={inputStyle} value={l.designation} onChange={(e) => updatePdfLine(idx, "designation", e.target.value)} />
+                <input type="number" className="w-20 border rounded-md px-2 py-1.5 text-sm" style={inputStyle} value={l.qty} onChange={(e) => updatePdfLine(idx, "qty", Number(e.target.value))} />
+                <input type="number" className="w-24 border rounded-md px-2 py-1.5 text-sm" style={inputStyle} value={l.unitPrice} onChange={(e) => updatePdfLine(idx, "unitPrice", Number(e.target.value))} />
+                <button onClick={() => removePdfLine(idx)}><X size={14} color={C.danger} /></button>
+              </div>
+            ))}
+            {pdfReview.lines.length === 0 && (
+              <p className="text-sm" style={{ color: C.inkSoft }}>Toutes les lignes ont été retirées.</p>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <button onClick={confirmPdfImport} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
+              <CheckCircle2 size={14} /> Confirmer l'import
+            </button>
+            <button onClick={() => setPdfReview(null)} className="px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.inkSoft }}>
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
