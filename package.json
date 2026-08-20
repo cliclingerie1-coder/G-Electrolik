@@ -15,7 +15,8 @@
     "recharts": "^2.12.7",
     "xlsx": "^0.18.5",
     "jsbarcode": "^3.11.6",
-    "html5-qrcode": "^2.3.8"
+    "html5-qrcode": "^2.3.8",
+    "pdfjs-dist": "^3.11.174"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
