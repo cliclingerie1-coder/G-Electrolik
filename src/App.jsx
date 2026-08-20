@@ -268,7 +268,7 @@ const DEFAULT_DB = {
   nextQuote: 1,
   deliveryNotes: [],
   nextBL: 1,
-  company: { name: "Négoce", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20 },
+  company: { name: "Electrolik", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20 },
   charges: [],
   returns: [],
 };
@@ -391,9 +391,9 @@ export default function App() {
       {/* Sidebar */}
       <aside style={{ background: C.sidebar }} className="md:w-64 w-full flex md:flex-col shrink-0">
         <div className="p-6 hidden md:block">
-          <div style={{ ...displayFont, color: "#fff" }} className="text-2xl italic">Négoce</div>
-          <div style={{ ...monoFont, color: C.sidebarText }} className="text-[10px] tracking-[0.2em] uppercase mt-1">
-            Registre de commerce
+          <img src="/logo.png" alt="Electrolik" style={{ width: 150, height: "auto" }} />
+          <div style={{ ...monoFont, color: C.sidebarText }} className="text-[10px] tracking-[0.2em] uppercase mt-2">
+            Gestion Pro — Registre de commerce
           </div>
         </div>
         <nav className="flex md:flex-col flex-1 md:px-3 md:pb-6 overflow-x-auto">
@@ -546,9 +546,9 @@ function Login({ onLogin }) {
   return (
     <div style={{ background: C.sidebar, minHeight: "100vh" }} className="flex items-center justify-center p-5">
       <div className="w-full max-w-sm rounded-lg p-8" style={{ background: "#fff" }}>
-        <div style={{ ...displayFont, color: C.ink }} className="text-3xl italic mb-1">Négoce</div>
-        <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-[0.2em] mb-6">
-          Connexion sécurisée
+        <img src="/logo.png" alt="Electrolik" style={{ display: "block", width: 190, height: "auto", margin: "0 auto 6px" }} />
+        <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-[0.2em] mb-6 text-center">
+          Gestion Pro — Connexion sécurisée
         </div>
         <div className="space-y-3">
           <Field label="Email">
@@ -2409,7 +2409,7 @@ function Facturation({ db, persist, notify, log }) {
           </style>
         </head>
         <body>
-          <h1>${company.name || "Négoce"}</h1>
+          <h1>${company.name || "Electrolik"}</h1>
           ${company.address || company.phone ? `<div class="legal">${[company.address, company.phone].filter(Boolean).join(" · ")}</div>` : ""}
           ${legalLine ? `<div class="legal">${legalLine}</div>` : ""}
           <div class="muted" style="margin-top:12px;">Facture ${inv.number}</div>
@@ -2683,7 +2683,7 @@ function Fournisseurs({ db, persist, notify, log }) {
           </style>
         </head>
         <body>
-          <h1>${company.name || "Négoce"}</h1>
+          <h1>${company.name || "Electrolik"}</h1>
           <div class="muted" style="margin-top:12px;">Relevé de compte — ${supplier.name}</div>
           <p>Téléphone : ${supplier.phone || "—"}<br/>Généré le : ${today()}</p>
           <table>
