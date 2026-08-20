@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -18,7 +18,7 @@ import JsBarcode from "jsbarcode";
 import { Html5Qrcode } from "html5-qrcode";
 
 // ---- Design tokens : identité Electrolik (noir / or, typographie tech) ----
-const C = {
+const LIGHT_THEME = {
   ink: "#14161B",
   inkSoft: "#6B7280",
   paper: "#F4F5F7",
@@ -34,6 +34,28 @@ const C = {
   dangerSoft: "#FBE3E4",
   border: "#E4E6EB",
 };
+const DARK_THEME = {
+  ink: "#EDEEF2",
+  inkSoft: "#9BA1AE",
+  paper: "#0E0F12",
+  paperCard: "#1A1C21",
+  sidebar: "#000000",
+  sidebarAlt: "#1C1D22",
+  sidebarText: "#9CA3AF",
+  accent: "#F2B705",
+  accentSoft: "#3A2F0C",
+  success: "#34D399",
+  successSoft: "#123527",
+  danger: "#F87171",
+  dangerSoft: "#3A1518",
+  border: "#2B2E36",
+};
+// C est mutable : ses propriétés sont réassignées par applyTheme() pour basculer clair/sombre
+// sans devoir toucher chaque référence C.xxx dans le reste du fichier.
+let C = { ...LIGHT_THEME };
+function applyTheme(mode) {
+  Object.assign(C, mode === "dark" ? DARK_THEME : LIGHT_THEME);
+}
 
 const displayFont = { fontFamily: "'Space Grotesk', ui-sans-serif, sans-serif", fontWeight: 700 };
 const bodyFont = { fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif" };
@@ -327,6 +349,17 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("ek-theme") : null;
+    return saved || "light";
+  });
+  applyTheme(theme); // mute C avant le rendu pour que tous les composants lisent les bonnes couleurs
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    try { localStorage.setItem("ek-theme", next); } catch (e) {}
+  };
 
   useEffect(() => {
     (async () => {
@@ -473,9 +506,14 @@ export default function App() {
                 {session.role === "admin" ? "Admin" : "Vendeur"}
               </div>
             </div>
-            <button onClick={() => setSession(null)} title="Déconnexion">
-              <LogOut size={16} color={C.sidebarText} />
-            </button>
+            <div className="flex items-center gap-3">
+              <button onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>
+                {theme === "dark" ? <Sun size={16} color={C.sidebarText} /> : <Moon size={16} color={C.sidebarText} />}
+              </button>
+              <button onClick={() => setSession(null)} title="Déconnexion">
+                <LogOut size={16} color={C.sidebarText} />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -556,7 +594,7 @@ function CameraScanner({ onDetected, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,24,43,0.85)" }}>
-      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: "#fff" }}>
+      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: C.paperCard }}>
         <div className="flex items-center justify-between mb-3">
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">Scanner un code-barres</div>
           <button onClick={onClose}><X size={16} color={C.inkSoft} /></button>
@@ -592,7 +630,7 @@ function Login({ onLogin }) {
 
   return (
     <div style={{ background: C.sidebar, minHeight: "100vh", ...bodyFont }} className="flex items-center justify-center p-5">
-      <div className="w-full max-w-sm rounded-xl p-8" style={{ background: "#fff" }}>
+      <div className="w-full max-w-sm rounded-xl p-8" style={{ background: C.paperCard }}>
         <img src="/logo.png" alt="Electrolik" style={{ display: "block", width: 190, height: "auto", margin: "0 auto 6px" }} />
         <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-[0.2em] mb-6 text-center">
           Gestion Pro — Connexion sécurisée
@@ -638,7 +676,7 @@ function AuditLog({ session }) {
   return (
     <div>
       <SectionTitle eyebrow="Sécurité" title="Journal d'audit" />
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -670,7 +708,7 @@ function AuditLog({ session }) {
 
 // ---------- Shared bits ----------
 function StatCard({ label, value, icon: Icon, tone = "default" }) {
-  const bg = tone === "danger" ? C.dangerSoft : tone === "success" ? C.successSoft : "#fff";
+  const bg = tone === "danger" ? C.dangerSoft : tone === "success" ? C.successSoft : C.paperCard;
   const iconColor = tone === "danger" ? C.danger : tone === "success" ? C.success : C.accent;
   return (
     <div className="rounded-xl p-5 border" style={{ background: bg, borderColor: C.border }}>
@@ -793,6 +831,33 @@ function Dashboard({ db }) {
       .sort((a, b) => b.total - a.total);
   }, [db.sales]);
 
+  // Rappels de paiement : clients "chaque semaine" / "10 jours" qui ont un solde dû à collecter
+  const clientsToRemind = useMemo(
+    () =>
+      (db.clients || [])
+        .filter((c) => (c.balanceDue || 0) > 0 && (c.paymentMode === "hebdo" || c.paymentMode === "10j"))
+        .sort((a, b) => (b.balanceDue || 0) - (a.balanceDue || 0)),
+    [db.clients]
+  );
+
+  // Produits stagnants : en stock depuis ≥30 jours sans aucune vente
+  const stagnantProducts = useMemo(() => {
+    const todayStr = today();
+    const lastSale = {};
+    activeSales.forEach((s) =>
+      (s.items || []).forEach((i) => {
+        if (!lastSale[i.productId] || s.date > lastSale[i.productId]) lastSale[i.productId] = s.date;
+      })
+    );
+    const daysSince = (d) => (d ? Math.floor((new Date(todayStr) - new Date(d)) / 86400000) : Infinity);
+    return db.products
+      .filter((p) => productQty(p) > 0)
+      .map((p) => ({ ...p, daysSince: daysSince(lastSale[p.id]) }))
+      .filter((p) => p.daysSince >= 30)
+      .sort((a, b) => b.daysSince - a.daysSince)
+      .slice(0, 8);
+  }, [db.products, db.sales]);
+
   return (
     <div>
       <SectionTitle eyebrow="Vue d'ensemble" title="Tableau de bord" />
@@ -805,7 +870,7 @@ function Dashboard({ db }) {
       </div>
 
       <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Évolution des ventes</div>
           {trend.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -822,7 +887,7 @@ function Dashboard({ db }) {
           )}
         </div>
 
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Top produits</div>
           {topProducts.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -839,7 +904,7 @@ function Dashboard({ db }) {
         </div>
       </div>
 
-      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Ventes par canal</div>
         {byChannel.length === 0 ? (
           <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -859,7 +924,7 @@ function Dashboard({ db }) {
         )}
       </div>
 
-      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Ventes par vendeur</div>
         {byVendor.length === 0 ? (
           <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
@@ -879,8 +944,55 @@ function Dashboard({ db }) {
         )}
       </div>
 
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
+            <AlertCircle size={13} /> Rappels de paiement
+          </div>
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>Clients "chaque semaine" / "10 jours" avec un solde à collecter.</p>
+          {clientsToRemind.length === 0 ? (
+            <p className="text-sm" style={{ color: C.inkSoft }}>Aucun rappel pour l'instant.</p>
+          ) : (
+            <ul className="space-y-2">
+              {clientsToRemind.map((c) => (
+                <li key={c.id} className="flex items-center justify-between text-sm">
+                  <div>
+                    <span style={{ color: C.ink }}>{c.name}</span>
+                    <span className="ml-2 text-[10px] px-2 py-0.5 rounded" style={{ ...monoFont, background: C.accentSoft, color: "#8A6D00" }}>
+                      {PAYMENT_MODE_LABELS[c.paymentMode]}
+                    </span>
+                  </div>
+                  <span style={{ ...monoFont, color: C.danger }}>{fmt(c.balanceDue)} DHS</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
+            <TrendingDown size={13} /> Produits qui ne bougent pas
+          </div>
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>En stock depuis 30 jours ou plus sans vente — à mettre en avant ou baisser de prix.</p>
+          {stagnantProducts.length === 0 ? (
+            <p className="text-sm" style={{ color: C.inkSoft }}>Rien de stagnant, tout se vend bien 👍</p>
+          ) : (
+            <ul className="space-y-2">
+              {stagnantProducts.map((p) => (
+                <li key={p.id} className="flex items-center justify-between text-sm">
+                  <span style={{ color: C.ink }}>{p.name}</span>
+                  <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>
+                    {p.daysSince === Infinity ? "Jamais vendu" : `${p.daysSince} j sans vente`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Alertes stock</div>
           {rupture.length === 0 && lowStock.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Aucune alerte, tout est bien approvisionné.</p>
@@ -902,7 +1014,7 @@ function Dashboard({ db }) {
           )}
         </div>
 
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Dernières ventes</div>
           {db.sales.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée pour l'instant.</p>
@@ -988,14 +1100,14 @@ function Rapports({ db }) {
               <button
                 onClick={() => setView("week")}
                 className="px-3 py-1.5 text-xs"
-                style={{ background: view === "week" ? C.accent : "#fff", color: view === "week" ? "#fff" : C.ink }}
+                style={{ background: view === "week" ? C.accent : C.paperCard, color: view === "week" ? C.paperCard : C.ink }}
               >
                 Hebdomadaire
               </button>
               <button
                 onClick={() => setView("month")}
                 className="px-3 py-1.5 text-xs"
-                style={{ background: view === "month" ? C.accent : "#fff", color: view === "month" ? "#fff" : C.ink }}
+                style={{ background: view === "month" ? C.accent : C.paperCard, color: view === "month" ? C.paperCard : C.ink }}
               >
                 Mensuel
               </button>
@@ -1019,7 +1131,7 @@ function Rapports({ db }) {
         <StatCard label="Panier moyen" value={current && current.count ? fmt(Math.round(current.total / current.count)) + " DHS" : "—"} icon={Receipt} />
       </div>
 
-      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
           {view === "week" ? "Chiffre d'affaires par semaine" : "Chiffre d'affaires par mois"}
         </div>
@@ -1038,7 +1150,7 @@ function Rapports({ db }) {
         )}
       </div>
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -1324,7 +1436,7 @@ function Stock({ db, persist, notify, log, session }) {
         }
       />
 
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: editingId ? C.accent : C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: editingId ? C.accent : C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
           {editingId ? "Modifier le produit" : "Nouveau produit"}
         </div>
@@ -1406,11 +1518,11 @@ function Stock({ db, persist, notify, log, session }) {
 
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
         <div className="flex items-center gap-3 flex-1 flex-wrap">
-          <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: "#fff" }}>
+          <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: C.paperCard }}>
             <Search size={14} color={C.inkSoft} />
             <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          <div className="flex items-center gap-1 border rounded-md p-1" style={{ borderColor: C.border, background: "#fff" }}>
+          <div className="flex items-center gap-1 border rounded-md p-1" style={{ borderColor: C.border, background: C.paperCard }}>
             {[
               { id: "all", label: "Tous" },
               { id: "low", label: `Stock bas (${lowStock.length})` },
@@ -1444,7 +1556,7 @@ function Stock({ db, persist, notify, log, session }) {
           <button
             onClick={() => importInputRef.current && importInputRef.current.click()}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+            style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
           >
             <Upload size={14} /> Importer (Excel)
           </button>
@@ -1477,14 +1589,14 @@ function Stock({ db, persist, notify, log, session }) {
               notify("Export Excel téléchargé");
             }}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+            style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
           >
             <Download size={14} /> Exporter (Excel)
           </button>
         </div>
       </div>
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b" >
@@ -1596,16 +1708,16 @@ function Stock({ db, persist, notify, log, session }) {
                         )}
                         <div className="grid md:grid-cols-5 gap-3 items-end">
                           <Field label="Couleur">
-                            <input className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.color} onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })} placeholder="Ex. Noir" />
+                            <input className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.color} onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })} placeholder="Ex. Noir" />
                           </Field>
                           <Field label="Taille">
-                            <input className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.size} onChange={(e) => setVariantForm({ ...variantForm, size: e.target.value })} placeholder="Ex. M" />
+                            <input className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.size} onChange={(e) => setVariantForm({ ...variantForm, size: e.target.value })} placeholder="Ex. M" />
                           </Field>
                           <Field label="Longueur">
-                            <input className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.length} onChange={(e) => setVariantForm({ ...variantForm, length: e.target.value })} placeholder="Ex. 1m" />
+                            <input className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.length} onChange={(e) => setVariantForm({ ...variantForm, length: e.target.value })} placeholder="Ex. 1m" />
                           </Field>
                           <Field label="Quantité">
-                            <input type="number" className={inputClass} style={{ ...inputStyle, background: "#fff" }} value={variantForm.qty} onChange={(e) => setVariantForm({ ...variantForm, qty: e.target.value })} />
+                            <input type="number" className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.qty} onChange={(e) => setVariantForm({ ...variantForm, qty: e.target.value })} />
                           </Field>
                           <button onClick={() => addVariant(p)} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
                             <Plus size={14} /> Ajouter
@@ -1883,7 +1995,7 @@ function Achats({ db, persist, notify, log }) {
           onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
           disabled={pdfLoading}
           className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-          style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+          style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
         >
           <FileText size={14} /> {pdfLoading ? "Lecture en cours…" : "Importer facture fournisseur (PDF)"}
         </button>
@@ -1900,14 +2012,14 @@ function Achats({ db, persist, notify, log }) {
         <button
           onClick={() => importInputRef.current && importInputRef.current.click()}
           className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-          style={{ borderColor: C.border, color: C.ink, background: "#fff" }}
+          style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
         >
           <Upload size={14} /> Importer facture fournisseur (Excel)
         </button>
       </div>
 
       {pdfReview && (
-        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
+        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Vérifier avant import (lecture PDF)</div>
           <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
             Lecture automatique du fichier — corrigez les désignations, quantités ou prix si besoin avant de confirmer. Rien n'est ajouté au stock tant que vous n'avez pas cliqué sur "Confirmer".
@@ -1971,7 +2083,7 @@ function Achats({ db, persist, notify, log }) {
         </div>
       )}
 
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
         <div className="grid md:grid-cols-6 gap-3">
           <Field label="Produit existant">
@@ -2024,7 +2136,7 @@ function Achats({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2072,6 +2184,60 @@ function Ventes({ db, persist, notify, session }) {
   const [pickingProduct, setPickingProduct] = useState(null);
   const [search, setSearch] = useState("");
   const [showCamera, setShowCamera] = useState(false);
+  const [lastReceipt, setLastReceipt] = useState(null);
+
+  const printThermalReceipt = (receipt) => {
+    const company = db.company || {};
+    const linesHtml = receipt.items
+      .map(
+        (i) => `<div class="line">
+          <div class="name">${i.name}${i.qty > 1 ? ` × ${i.qty}` : ""}</div>
+          <div class="amt">${fmt(i.price * i.qty)}</div>
+        </div>`
+      )
+      .join("");
+    const html = `
+      <html>
+        <head>
+          <title>Reçu ${receipt.number}</title>
+          <style>
+            @page { margin: 0; }
+            body { font-family: 'Courier New', monospace; width: 76mm; margin: 0 auto; padding: 6px 4px; font-size: 12px; color: #000; }
+            .center { text-align: center; }
+            h1 { font-size: 15px; margin: 0 0 2px; }
+            .muted { font-size: 10px; color: #333; }
+            hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+            .line { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+            .name { flex: 1; }
+            .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 4px; }
+          </style>
+        </head>
+        <body>
+          <div class="center">
+            <h1>${company.name || "Electrolik"}</h1>
+            <div class="muted">${company.address || ""}${company.phone ? " · " + company.phone : ""}</div>
+            <div class="muted">${company.ice ? "ICE: " + company.ice : ""}</div>
+          </div>
+          <hr/>
+          <div class="muted">Reçu : ${receipt.number}</div>
+          <div class="muted">${receipt.date} · ${receipt.client}</div>
+          <hr/>
+          ${linesHtml}
+          <hr/>
+          ${receipt.discount > 0 ? `<div class="line"><div>Remise</div><div>-${fmt(receipt.discount)}</div></div>` : ""}
+          ${receipt.tvaRate ? `<div class="line muted"><div>dont TVA ${receipt.tvaRate}%</div><div>${fmt(receipt.tvaAmount)}</div></div>` : ""}
+          <div class="total-row"><div>TOTAL</div><div>${fmt(receipt.total)} DHS</div></div>
+          <div class="muted" style="margin-top:2px;">Paiement : ${receipt.payment === "cash" ? "Comptant" : "Crédit"}</div>
+          <hr/>
+          <div class="center muted">Merci de votre confiance !</div>
+        </body>
+      </html>`;
+    const w = window.open("", "_blank", "width=380,height=600");
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
 
   const cartKey = (productId, variantId) => productId + "::" + (variantId || "");
 
@@ -2179,6 +2345,7 @@ function Ventes({ db, persist, notify, session }) {
       nextInvoice: db.nextInvoice + 1,
     });
     setCart([]); setClient(""); setClientId(""); setPayment("cash"); setDiscount("0"); setChannel("Boutique");
+    setLastReceipt({ ...sale, number: invoiceNumber });
     notify(`Vente enregistrée — facture ${invoiceNumber}`);
   };
 
@@ -2186,7 +2353,7 @@ function Ventes({ db, persist, notify, session }) {
     <div>
       <SectionTitle eyebrow="Point de vente" title="Ventes / PDV" />
       <div className="flex flex-wrap gap-3 mb-4">
-        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.accent, background: "#fff" }}>
+        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.accent, background: C.paperCard }}>
           <Barcode size={16} color={C.accent} />
           <input
             placeholder="Scanner ou taper un code-barres, puis Entrée…"
@@ -2203,7 +2370,7 @@ function Ventes({ db, persist, notify, session }) {
         >
           <Camera size={16} /> Scanner avec la caméra
         </button>
-        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: C.paperCard }}>
           <Search size={16} color={C.inkSoft} />
           <input
             placeholder="Rechercher par nom ou SKU…"
@@ -2217,7 +2384,7 @@ function Ventes({ db, persist, notify, session }) {
       {showCamera && <CameraScanner onDetected={handleCameraDetected} onClose={() => setShowCamera(false)} />}
 
       {pickingProduct && (
-        <div className="rounded-xl border p-4 mb-4" style={{ borderColor: C.accent, background: "#fff" }}>
+        <div className="rounded-xl border p-4 mb-4" style={{ borderColor: C.accent, background: C.paperCard }}>
           <div className="flex items-center justify-between mb-3">
             <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">
               Choisir une variante — {pickingProduct.name}
@@ -2253,7 +2420,7 @@ function Ventes({ db, persist, notify, session }) {
                   onClick={() => addToCart(p)}
                   disabled={qty <= 0}
                   className="text-left rounded-xl border p-3 disabled:opacity-40 flex gap-3 items-center"
-                  style={{ borderColor: C.border, background: "#fff" }}
+                  style={{ borderColor: C.border, background: C.paperCard }}
                 >
                   <div className="w-12 h-12 rounded-md border flex items-center justify-center overflow-hidden shrink-0" style={{ borderColor: C.border, background: C.paper }}>
                     {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={16} color={C.inkSoft} />}
@@ -2271,7 +2438,7 @@ function Ventes({ db, persist, notify, session }) {
           </div>
         </div>
 
-        <div className="rounded-xl border p-5 h-fit sticky top-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5 h-fit sticky top-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Panier</div>
           {cart.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
@@ -2353,6 +2520,15 @@ function Ventes({ db, persist, notify, session }) {
           <button onClick={checkout} className="w-full py-2.5 rounded-md text-sm text-white flex items-center justify-center gap-2" style={{ background: C.accent }}>
             Valider la vente <ChevronRight size={14} />
           </button>
+          {lastReceipt && (
+            <button
+              onClick={() => printThermalReceipt(lastReceipt)}
+              className="w-full mt-2 py-2 rounded-md text-sm border flex items-center justify-center gap-2"
+              style={{ borderColor: C.border, color: C.ink }}
+            >
+              <Printer size={14} /> Imprimer le reçu ({lastReceipt.number})
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -2496,7 +2672,7 @@ function Facturation({ db, persist, notify, log }) {
       />
       <div className="space-y-3">
         {[...db.invoices].reverse().map((inv) => (
-          <div key={inv.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+          <div key={inv.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
             <div>
               <div style={monoFont} className="text-sm">{inv.number}</div>
               <div style={{ color: C.inkSoft }} className="text-xs">{inv.client} · {inv.date}{inv.soldBy ? ` · ${inv.soldBy}` : ""}</div>
@@ -2557,6 +2733,18 @@ function Clients({ db, persist, notify, log }) {
 
   const totalDue = db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0);
 
+  const whatsappReminder = (c) => {
+    if (!c.phone) return notify("Ce client n'a pas de numéro de téléphone enregistré");
+    let phone = c.phone.replace(/[\s.\-()]/g, "");
+    if (phone.startsWith("0")) phone = "212" + phone.slice(1);
+    else if (!phone.startsWith("212")) phone = "212" + phone;
+    const msg =
+      (c.balanceDue || 0) > 0
+        ? `Bonjour ${c.name}, un rappel amical : votre solde dû chez Electrolik est de ${fmt(c.balanceDue)} DHS. Merci de bien vouloir régulariser. 🙏`
+        : `Bonjour ${c.name}, merci pour votre confiance chez Electrolik ! N'hésitez pas à nous contacter pour toute commande. 😊`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
   return (
     <div>
       <SectionTitle
@@ -2569,7 +2757,7 @@ function Clients({ db, persist, notify, log }) {
           </div>
         }
       />
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau client</div>
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Nom"><input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
@@ -2585,7 +2773,7 @@ function Clients({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2608,7 +2796,14 @@ function Clients({ db, persist, notify, log }) {
                   </select>
                 </td>
                 <td className="px-4 py-3" style={{ ...monoFont, color: c.balanceDue > 0 ? C.danger : C.success }}>{fmt(c.balanceDue || 0)} DHS</td>
-                <td className="px-4 py-3 text-right"><button onClick={() => removeClient(c.id)}><Trash2 size={14} color={C.danger} /></button></td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => whatsappReminder(c)} title="Envoyer un message WhatsApp">
+                      <MessageCircle size={15} color="#25D366" />
+                    </button>
+                    <button onClick={() => removeClient(c.id)}><Trash2 size={14} color={C.danger} /></button>
+                  </div>
+                </td>
               </tr>
             ))}
             {db.clients.length === 0 && (
@@ -2776,7 +2971,7 @@ function Fournisseurs({ db, persist, notify, log }) {
           </div>
         }
       />
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau fournisseur</div>
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Nom"><input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
@@ -2787,7 +2982,7 @@ function Fournisseurs({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dette déjà existante (solde de départ)</div>
         <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
           Pour enregistrer un montant que vous devez déjà à un fournisseur (avant d'utiliser cette application). Cela n'affecte ni le stock ni les achats — uniquement le solde dû.
@@ -2811,7 +3006,7 @@ function Fournisseurs({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Enregistrer un paiement</div>
         <div className="grid md:grid-cols-3 gap-3">
           <Field label="Fournisseur">
@@ -2829,7 +3024,7 @@ function Fournisseurs({ db, persist, notify, log }) {
         </button>
       </div>
 
-      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2864,7 +3059,7 @@ function Fournisseurs({ db, persist, notify, log }) {
       </div>
 
       <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique des paiements</div>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -2922,7 +3117,7 @@ function Cheques({ db, persist, notify, log }) {
   return (
     <div>
       <SectionTitle eyebrow="Trésorerie" title="Chèques" />
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau chèque</div>
         <div className="grid md:grid-cols-6 gap-3">
           <Field label="Type">
@@ -2944,7 +3139,7 @@ function Cheques({ db, persist, notify, log }) {
 
       <div className="space-y-3">
         {[...db.cheques].reverse().map((c) => (
-          <div key={c.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+          <div key={c.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
             <div>
               <div className="flex items-center gap-2">
                 <span style={monoFont} className="text-sm">{c.number}</span>
@@ -3033,14 +3228,14 @@ function Devis({ db, persist, notify, log, session }) {
         <div className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {db.products.map((p) => (
-              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: "#fff" }}>
+              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
                 <div className="text-sm mb-1" style={{ color: C.ink }}>{p.name}</div>
                 <div style={{ ...monoFont, color: C.accent }} className="text-sm">{fmt(p.price)} DHS</div>
               </button>
             ))}
           </div>
         </div>
-        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau devis</div>
           {cart.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
@@ -3078,7 +3273,7 @@ function Devis({ db, persist, notify, log, session }) {
 
       <div className="space-y-3">
         {[...db.quotes].reverse().map((q) => (
-          <div key={q.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+          <div key={q.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
             <div>
               <div style={monoFont} className="text-sm">{q.number}</div>
               <div style={{ color: C.inkSoft }} className="text-xs">{q.client} · {q.date}</div>
@@ -3177,14 +3372,14 @@ function Livraison({ db, persist, notify, log }) {
         <div className="lg:col-span-2">
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {db.products.map((p) => (
-              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: "#fff" }}>
+              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
                 <div className="text-sm" style={{ color: C.ink }}>{p.name}</div>
                 <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · {fmt(p.price)} DHS</div>
               </button>
             ))}
           </div>
         </div>
-        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau colis</div>
           {items.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
@@ -3236,7 +3431,7 @@ function Livraison({ db, persist, notify, log }) {
         {[...db.deliveryNotes].reverse().map((b) => {
           const c = b.clientId ? db.clients.find((x) => x.id === b.clientId) : null;
           return (
-            <div key={b.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: "#fff" }}>
+            <div key={b.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
               <div>
                 <div style={monoFont} className="text-sm">{b.number}</div>
                 <div style={{ color: C.inkSoft }} className="text-xs">
@@ -3268,7 +3463,7 @@ function Livraison({ db, persist, notify, log }) {
 
       {/* Totaux par client, selon leur mode de paiement */}
       <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Total dû par client</div>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -3343,7 +3538,7 @@ function Equipe({ session, notify, log }) {
   return (
     <div>
       <SectionTitle eyebrow="Sécurité" title="Équipe" />
-      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -3376,7 +3571,7 @@ function Equipe({ session, notify, log }) {
           </tbody>
         </table>
       </div>
-      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Ajouter un membre</div>
         <p className="text-sm" style={{ color: C.inkSoft }}>
           Pour des raisons de sécurité, la création de nouveaux comptes se fait depuis Supabase :
@@ -3431,7 +3626,7 @@ function Charges({ db, persist, notify, log }) {
         }
       />
 
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvelle charge</div>
         <div className="grid md:grid-cols-4 gap-3">
           <Field label="Description">
@@ -3457,7 +3652,7 @@ function Charges({ db, persist, notify, log }) {
       {byCategory.length > 0 && (
         <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {byCategory.map((c) => (
-            <div key={c.name} className="rounded-md border p-3" style={{ borderColor: C.border, background: "#fff" }}>
+            <div key={c.name} className="rounded-md border p-3" style={{ borderColor: C.border, background: C.paperCard }}>
               <div style={{ color: C.inkSoft }} className="text-xs mb-1">{c.name}</div>
               <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(c.total)} DHS</div>
             </div>
@@ -3465,7 +3660,7 @@ function Charges({ db, persist, notify, log }) {
         </div>
       )}
 
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
@@ -3566,7 +3761,7 @@ function Finance({ db, persist, notify, log, session }) {
     <div>
       <SectionTitle eyebrow="Finances" title="Comptabilité & capital" />
 
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4 flex items-center gap-2">
           <Settings size={14} /> Informations de l'entreprise (facture)
         </div>
@@ -3601,7 +3796,7 @@ function Finance({ db, persist, notify, log, session }) {
         </p>
       </div>
 
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
           Capital initial
         </div>
@@ -3639,19 +3834,19 @@ function Finance({ db, persist, notify, log, session }) {
       </p>
 
       <div className="grid md:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Créances clients (à recevoir)</div>
           <div style={{ ...displayFont, color: C.success }} className="text-2xl">{fmt(db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0))} DHS</div>
           <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vos clients vous doivent (ventes à crédit).</p>
         </div>
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dettes fournisseurs (à payer)</div>
           <div style={{ ...displayFont, color: C.danger }} className="text-2xl">{fmt(db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0))} DHS</div>
           <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vous devez à vos fournisseurs (achats à crédit).</p>
         </div>
       </div>
 
-      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div className="px-4 py-3 border-b" style={{ ...monoFont, fontSize: 11, color: C.inkSoft, borderColor: C.border }} >
           BILAN ANNUEL
         </div>
@@ -3688,7 +3883,7 @@ function Finance({ db, persist, notify, log, session }) {
         Bénéfice = chiffre d'affaires des ventes − coûts des achats, pour chaque année. Le capital actuel additionne le capital initial et le bénéfice net cumulé sur toute la période.
       </p>
 
-      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: "#fff" }}>
+      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Sauvegarde des données</div>
         <div className="flex flex-wrap gap-3">
           <button
