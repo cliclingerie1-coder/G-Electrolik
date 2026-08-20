@@ -260,6 +260,7 @@ const DEFAULT_DB = {
   clients: [],
   suppliers: [],
   supplierPayments: [],
+  openingDebts: [],
   cheques: [],
   quotes: [],
   nextQuote: 1,
@@ -2365,7 +2366,8 @@ function Fournisseurs({ db, persist, notify, log }) {
     const suppliers = db.suppliers.map((s) =>
       s.id === supplier.id ? { ...s, balanceDue: (s.balanceDue || 0) + amount } : s
     );
-    persist({ ...db, suppliers }); // ne touche ni au stock, ni aux achats — juste le solde dû
+    const debt = { id: uid(), date: today(), supplierId: supplier.id, supplierName: supplier.name, amount, note: debtForm.note };
+    persist({ ...db, suppliers, openingDebts: [...(db.openingDebts || []), debt] }); // ne touche ni au stock, ni aux achats — juste le solde dû
     if (log) log("add_opening_debt", "suppliers", supplier.id, { name: supplier.name, amount, note: debtForm.note });
     setDebtForm({ supplierId: "", amount: "", note: "" });
     notify(`Dette de ${fmt(amount)} DHS ajoutée pour ${supplier.name}`);
@@ -2387,6 +2389,97 @@ function Fournisseurs({ db, persist, notify, log }) {
 
   const spentBySupplier = (name) => db.purchases.filter((p) => p.supplier === name).reduce((s, p) => s + p.total, 0);
   const totalDue = db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0);
+
+  // Construit la liste chronologique de toutes les transactions avec un fournisseur + solde cumulé
+  const getSupplierStatement = (supplier) => {
+    const rows = [];
+    (db.openingDebts || []).filter((d) => d.supplierId === supplier.id).forEach((d) => {
+      rows.push({ date: d.date, type: "Dette initiale", detail: d.note || "Solde de départ", montant: d.amount, sens: "+" });
+    });
+    db.purchases.filter((p) => p.supplierId === supplier.id).forEach((p) => {
+      rows.push({
+        date: p.date,
+        type: p.payment === "credit" ? "Achat à crédit" : "Achat comptant",
+        detail: `${p.productName} × ${p.qty}`,
+        montant: p.total,
+        sens: p.payment === "credit" ? "+" : "0",
+      });
+    });
+    (db.supplierPayments || []).filter((pay) => pay.supplierId === supplier.id).forEach((pay) => {
+      rows.push({ date: pay.date, type: "Paiement", detail: "Réglé au fournisseur", montant: pay.amount, sens: "-" });
+    });
+    rows.sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+    let solde = 0;
+    return rows.map((r) => {
+      if (r.sens === "+") solde += r.montant;
+      if (r.sens === "-") solde -= r.montant;
+      return { ...r, solde };
+    });
+  };
+
+  const printSupplierStatement = (supplier) => {
+    const rows = getSupplierStatement(supplier);
+    const company = db.company || {};
+    const rowsHtml = rows
+      .map(
+        (r) => `<tr>
+          <td style="padding:6px 0;">${r.date}</td>
+          <td style="padding:6px 0;">${r.type}</td>
+          <td style="padding:6px 0;color:#5B6274;">${r.detail}</td>
+          <td style="padding:6px 0;text-align:right;color:${r.sens === "+" ? "#B4453A" : r.sens === "-" ? "#3F7859" : "#5B6274"};">${r.sens === "+" ? "+" : r.sens === "-" ? "−" : ""}${fmt(r.montant)} DHS</td>
+          <td style="padding:6px 0;text-align:right;">${fmt(r.solde)} DHS</td>
+        </tr>`
+      )
+      .join("");
+    const html = `
+      <html>
+        <head>
+          <title>Relevé — ${supplier.name}</title>
+          <style>
+            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 760px; margin: auto; }
+            h1 { font-style: italic; margin-bottom: 0; }
+            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
+            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+            th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
+            th:nth-child(4), th:nth-child(5) { text-align: right; }
+            tr td { border-bottom: 1px solid #EEE; }
+            .total { text-align: right; margin-top: 14px; font-size: 22px; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <h1>${company.name || "Négoce"}</h1>
+          <div class="muted" style="margin-top:12px;">Relevé de compte — ${supplier.name}</div>
+          <p>Téléphone : ${supplier.phone || "—"}<br/>Généré le : ${today()}</p>
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Détail</th><th>Montant</th><th>Solde cumulé</th></tr></thead>
+            <tbody>${rowsHtml || `<tr><td colspan="5" style="padding:12px 0;color:#5B6274;">Aucune transaction.</td></tr>`}</tbody>
+          </table>
+          <div class="total">Solde dû actuel : ${fmt(supplier.balanceDue || 0)} DHS</div>
+        </body>
+      </html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
+  const exportSupplierStatementExcel = (supplier) => {
+    const rows = getSupplierStatement(supplier);
+    const data = rows.map((r) => ({
+      Date: r.date,
+      Type: r.type,
+      Détail: r.detail,
+      "Montant (DHS)": r.sens === "+" ? r.montant : r.sens === "-" ? -r.montant : r.montant,
+      "Solde cumulé (DHS)": r.solde,
+    }));
+    data.push({ Date: "", Type: "", Détail: "SOLDE DÛ ACTUEL", "Montant (DHS)": "", "Solde cumulé (DHS)": supplier.balanceDue || 0 });
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Relevé");
+    XLSX.writeFile(wb, `releve-${supplier.name.replace(/[^a-z0-9]+/gi, "-")}-${today()}.xlsx`);
+    notify("Relevé Excel téléchargé");
+  };
 
   return (
     <div>
@@ -2457,7 +2550,7 @@ function Fournisseurs({ db, persist, notify, log }) {
         <table className="w-full text-sm">
           <thead>
             <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Total achats</td><td className="px-4 py-3">Solde dû</td><td className="px-4 py-3"></td>
+              <td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Total achats</td><td className="px-4 py-3">Solde dû</td><td className="px-4 py-3">Relevé</td><td className="px-4 py-3"></td>
             </tr>
           </thead>
           <tbody>
@@ -2467,11 +2560,21 @@ function Fournisseurs({ db, persist, notify, log }) {
                 <td className="px-4 py-3 flex items-center gap-1" style={{ color: C.inkSoft }}><Phone size={12} />{s.phone || "—"}</td>
                 <td className="px-4 py-3" style={monoFont}>{fmt(spentBySupplier(s.name))} DHS</td>
                 <td className="px-4 py-3" style={{ ...monoFont, color: (s.balanceDue || 0) > 0 ? C.danger : C.success }}>{fmt(s.balanceDue || 0)} DHS</td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2">
+                    <button onClick={() => printSupplierStatement(s)} title="Télécharger en PDF" className="text-xs px-2 py-1 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
+                      <Printer size={12} /> PDF
+                    </button>
+                    <button onClick={() => exportSupplierStatementExcel(s)} title="Télécharger en Excel" className="text-xs px-2 py-1 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
+                      <Download size={12} /> Excel
+                    </button>
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-right"><button onClick={() => removeSupplier(s.id)}><Trash2 size={14} color={C.danger} /></button></td>
               </tr>
             ))}
             {db.suppliers.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun fournisseur enregistré.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun fournisseur enregistré.</td></tr>
             )}
           </tbody>
         </table>
