@@ -1026,6 +1026,7 @@ function Rapports({ db }) {
 function Stock({ db, persist, notify, log, session }) {
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
   const [q, setQ] = useState("");
+  const [stockFilter, setStockFilter] = useState("all"); // all | low | out
   const [editingId, setEditingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
   const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "" });
@@ -1253,9 +1254,15 @@ function Stock({ db, persist, notify, log, session }) {
       products: db.products.map((p) => (p.id === id ? { ...p, qty: Math.max(0, p.qty + delta) } : p)),
     });
 
-  const filtered = db.products.filter((p) =>
-    (p.name + p.sku + p.category + (p.barcode || "")).toLowerCase().includes(q.toLowerCase())
-  );
+  const filtered = db.products
+    .filter((p) => (p.name + p.sku + p.category + (p.barcode || "")).toLowerCase().includes(q.toLowerCase()))
+    .filter((p) => {
+      if (stockFilter === "out") return productQty(p) <= 0;
+      if (stockFilter === "low") return productQty(p) > 0 && productQty(p) <= p.minQty;
+      return true;
+    });
+  const rupture = db.products.filter((p) => productQty(p) <= 0);
+  const lowStock = db.products.filter((p) => productQty(p) > 0 && productQty(p) <= p.minQty);
 
   return (
     <div>
@@ -1351,9 +1358,30 @@ function Stock({ db, persist, notify, log, session }) {
       </div>
 
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: "#fff" }}>
-          <Search size={14} color={C.inkSoft} />
-          <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="flex items-center gap-3 flex-1 flex-wrap">
+          <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: "#fff" }}>
+            <Search size={14} color={C.inkSoft} />
+            <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
+          </div>
+          <div className="flex items-center gap-1 border rounded-md p-1" style={{ borderColor: C.border, background: "#fff" }}>
+            {[
+              { id: "all", label: "Tous" },
+              { id: "low", label: `Stock bas (${lowStock.length})` },
+              { id: "out", label: `Rupture (${rupture.length})` },
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setStockFilter(f.id)}
+                className="text-xs px-3 py-1.5 rounded"
+                style={{
+                  background: stockFilter === f.id ? C.accent : "transparent",
+                  color: stockFilter === f.id ? "#fff" : f.id === "out" ? C.danger : f.id === "low" ? "#B08900" : C.inkSoft,
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <input
