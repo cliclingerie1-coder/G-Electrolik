@@ -328,6 +328,7 @@ const DEFAULT_DB = {
   nextInvoice: 1001,
   capital: 0,
   clients: [],
+  clientPayments: [],
   suppliers: [],
   supplierPayments: [],
   openingDebts: [],
@@ -2709,8 +2710,124 @@ function Facturation({ db, persist, notify, log }) {
 // ---------- Clients ----------
 const PAYMENT_MODE_LABELS = { hebdo: "Chaque semaine", "10j": "Tous les 10 jours (sur colis livrés)", surplace: "Sur place" };
 
+// ---------- Fiche client détaillée ----------
+function ClientDetail({ db, client, onBack, onWhatsapp }) {
+  const sales = db.sales.filter((s) => s.clientId === client.id).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const colisList = db.deliveryNotes.filter((b) => b.clientId === client.id).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const payments = (db.clientPayments || []).filter((p) => p.clientId === client.id).sort((a, b) => (a.date < b.date ? 1 : -1));
+
+  const totalAchete = sales.filter((s) => !s.returned).reduce((s, x) => s + x.total, 0);
+  const totalEncaisse = payments.reduce((s, p) => s + p.amount, 0);
+
+  return (
+    <div>
+      <button onClick={onBack} className="inline-flex items-center gap-2 text-sm mb-5" style={{ color: C.inkSoft }}>
+        <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Retour aux clients
+      </button>
+
+      <div className="rounded-xl border p-6 mb-8 flex flex-wrap items-center justify-between gap-4" style={{ borderColor: C.border, background: C.paperCard }}>
+        <div>
+          <div style={{ ...displayFont, color: C.ink }} className="text-2xl italic">{client.name}</div>
+          <div className="flex items-center gap-3 mt-1 text-sm" style={{ color: C.inkSoft }}>
+            <span className="flex items-center gap-1"><Phone size={12} />{client.phone || "—"}</span>
+            <span>·</span>
+            <span style={monoFont} className="text-xs uppercase tracking-widest">{PAYMENT_MODE_LABELS[client.paymentMode || "surplace"]}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="text-right">
+            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Total acheté</div>
+            <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(totalAchete)} DHS</div>
+          </div>
+          <div className="text-right">
+            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Solde dû</div>
+            <div style={{ ...monoFont, color: (client.balanceDue || 0) > 0 ? C.danger : C.success }} className="text-lg">{fmt(client.balanceDue || 0)} DHS</div>
+          </div>
+          {client.phone && (
+            <button onClick={() => onWhatsapp(client)} className="p-2 rounded-md border" style={{ borderColor: C.border }} title="WhatsApp">
+              <MessageCircle size={16} color="#25D366" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Ventes / Factures */}
+        <div>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Ventes ({sales.length})</div>
+          <div className="space-y-2">
+            {sales.map((s) => (
+              <div key={s.id} className="rounded-xl border p-3" style={{ borderColor: C.border, background: C.paperCard }}>
+                <div className="flex justify-between text-sm">
+                  <span style={monoFont}>{s.date}</span>
+                  <span style={{ ...monoFont, color: s.returned ? C.inkSoft : C.ink }}>{fmt(s.total)} DHS</span>
+                </div>
+                <div className="text-xs mt-1" style={{ color: C.inkSoft }}>
+                  {(s.items || []).length} article(s) · {s.payment === "cash" ? "Comptant" : "Crédit"}
+                  {s.returned && " · Retourné"}
+                </div>
+              </div>
+            ))}
+            {sales.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée.</p>}
+          </div>
+        </div>
+
+        {/* Colis */}
+        <div>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Colis ({colisList.length})</div>
+          <div className="space-y-2">
+            {colisList.map((b) => {
+              const statuses = b.items.map((i) => i.status || b.status || "attente");
+              const overall = statuses.every((s) => s === "livre") ? "livre" : statuses.every((s) => s === "echec") ? "echec" : statuses.every((s) => s === "attente") ? "attente" : "partiel";
+              return (
+                <div key={b.id} className="rounded-xl border p-3" style={{ borderColor: C.border, background: C.paperCard }}>
+                  <div className="flex justify-between text-sm">
+                    <span style={monoFont}>{b.number}</span>
+                    <span style={monoFont}>{fmt(b.montant || 0)} DHS</span>
+                  </div>
+                  <div className="text-xs mt-1 flex items-center justify-between" style={{ color: C.inkSoft }}>
+                    <span>{b.date} · {b.items.length} article(s)</span>
+                    <span
+                      className="px-2 py-0.5 rounded"
+                      style={{
+                        ...monoFont, fontSize: 10,
+                        background: overall === "livre" ? C.successSoft : overall === "echec" ? C.dangerSoft : overall === "partiel" ? C.accentSoft : C.border,
+                        color: overall === "livre" ? C.success : overall === "echec" ? C.danger : overall === "partiel" ? "#8A6D00" : C.inkSoft,
+                      }}
+                    >
+                      {overall === "livre" ? "LIVRÉ" : overall === "echec" ? "ÉCHEC" : overall === "partiel" ? "PARTIEL" : "ATTENTE"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+            {colisList.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Aucun colis pour ce client.</p>}
+          </div>
+        </div>
+
+        {/* Paiements */}
+        <div>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">
+            Paiements reçus ({fmt(totalEncaisse)} DHS)
+          </div>
+          <div className="space-y-2">
+            {payments.map((p) => (
+              <div key={p.id} className="rounded-xl border p-3 flex justify-between text-sm" style={{ borderColor: C.border, background: C.paperCard }}>
+                <span style={monoFont}>{p.date}</span>
+                <span style={{ ...monoFont, color: C.success }}>+{fmt(p.amount)} DHS</span>
+              </div>
+            ))}
+            {payments.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Aucun paiement encaissé pour l'instant.</p>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Clients({ db, persist, notify, log }) {
   const [form, setForm] = useState({ name: "", phone: "", paymentMode: "surplace" });
+  const [viewClientId, setViewClientId] = useState(null);
 
   const addClient = () => {
     if (!form.name) return notify("Nom requis");
@@ -2744,6 +2861,14 @@ function Clients({ db, persist, notify, log }) {
         : `Bonjour ${c.name}, merci pour votre confiance chez Electrolik ! N'hésitez pas à nous contacter pour toute commande. 😊`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
   };
+
+  if (viewClientId) {
+    const client = db.clients.find((c) => c.id === viewClientId);
+    if (client) {
+      return <ClientDetail db={db} client={client} onBack={() => setViewClientId(null)} onWhatsapp={whatsappReminder} />;
+    }
+    setViewClientId(null);
+  }
 
   return (
     <div>
@@ -2783,7 +2908,11 @@ function Clients({ db, persist, notify, log }) {
           <tbody>
             {db.clients.map((c) => (
               <tr key={c.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={{ color: C.ink }}>{c.name}</td>
+                <td className="px-4 py-3">
+                  <button onClick={() => setViewClientId(c.id)} style={{ color: C.ink }} className="hover:underline text-left">
+                    {c.name}
+                  </button>
+                </td>
                 <td className="px-4 py-3 flex items-center gap-1" style={{ color: C.inkSoft }}><Phone size={12} />{c.phone || "—"}</td>
                 <td className="px-4 py-3">
                   <select
@@ -3321,43 +3450,68 @@ function Livraison({ db, persist, notify, log }) {
     if (items.length === 0) return notify("Aucun article sélectionné");
     const number = "BL-" + db.nextBL;
     const montant = cartMontant;
-    const bl = { id: uid(), number, date: today(), client: client || "Client comptoir", clientId, items, montant, status: "attente" };
+    const itemsWithStatus = items.map((i) => ({ ...i, status: "attente" }));
+    const bl = { id: uid(), number, date: today(), client: client || "Client comptoir", clientId, items: itemsWithStatus, montant };
     persist({ ...db, deliveryNotes: [...db.deliveryNotes, bl], nextBL: db.nextBL + 1 });
-    if (log) log("create_bl", "deliveryNotes", bl.id, { number, montant });
+    if (log) log("create_bl", "deliveryNotes", bl.id, { number, montant, articles: itemsWithStatus.length });
     setItems([]); setClient(""); setClientId("");
-    notify(`Colis ${number} créé`);
+    notify(`Colis ${number} créé avec ${itemsWithStatus.length} article(s)`);
   };
 
-  // Colis livré : le montant s'ajoute au solde dû du client (paiement selon son mode : semaine / 10j / sur place)
-  const markDelivered = (id) => {
-    const bl = db.deliveryNotes.find((b) => b.id === id);
+  // Statut d'un article : utilise son propre statut, ou celui (ancien) du colis pour les colis créés avant cette mise à jour
+  const itemStatus = (bl, item) => item.status || bl.status || "attente";
+
+  const colisOverallStatus = (bl) => {
+    const statuses = bl.items.map((i) => itemStatus(bl, i));
+    if (statuses.every((s) => s === "livre")) return "livre";
+    if (statuses.every((s) => s === "echec")) return "echec";
+    if (statuses.every((s) => s === "attente")) return "attente";
+    return "partiel";
+  };
+
+  // Article livré : seul le montant de CET article s'ajoute au solde dû du client
+  const markItemDelivered = (blId, productId) => {
+    const bl = db.deliveryNotes.find((b) => b.id === blId);
     if (!bl) return;
+    const item = bl.items.find((i) => i.productId === productId);
+    if (!item) return;
+    const montantArticle = item.qty * (item.unitPrice || 0);
     const clients = bl.clientId
-      ? db.clients.map((c) => (c.id === bl.clientId ? { ...c, balanceDue: (c.balanceDue || 0) + (bl.montant || 0) } : c))
+      ? db.clients.map((c) => (c.id === bl.clientId ? { ...c, balanceDue: (c.balanceDue || 0) + montantArticle } : c))
       : db.clients;
-    persist({ ...db, clients, deliveryNotes: db.deliveryNotes.map((b) => (b.id === id ? { ...b, status: "livre", deliveredAt: today() } : b)) });
-    if (log) log("mark_delivered", "deliveryNotes", id, { number: bl.number, montant: bl.montant });
-    notify(`${bl.number} marqué livré`);
+    const deliveryNotes = db.deliveryNotes.map((b) =>
+      b.id === blId ? { ...b, items: b.items.map((i) => (i.productId === productId ? { ...i, status: "livre" } : i)) } : b
+    );
+    persist({ ...db, clients, deliveryNotes });
+    if (log) log("mark_item_delivered", "deliveryNotes", blId, { number: bl.number, article: item.name, montant: montantArticle });
+    notify(`${item.name} marqué livré (${bl.number})`);
   };
 
-  // Échec de livraison : le colis revient, le stock est remis automatiquement, aucun montant dû
-  const markEchec = (id) => {
-    const bl = db.deliveryNotes.find((b) => b.id === id);
+  // Échec de livraison d'un article : cet article revient, son stock est remis, aucun montant dû pour lui
+  const markItemEchec = (blId, productId) => {
+    const bl = db.deliveryNotes.find((b) => b.id === blId);
     if (!bl) return;
-    let products = db.products;
-    bl.items.forEach((i) => {
-      products = adjustStock(products, i.productId, i.variantId || null, i.qty);
-    });
-    persist({ ...db, products, deliveryNotes: db.deliveryNotes.map((b) => (b.id === id ? { ...b, status: "echec" } : b)) });
-    if (log) log("echec_livraison", "deliveryNotes", id, { number: bl.number });
-    notify(`${bl.number} : échec de livraison, colis remis en stock`);
+    const item = bl.items.find((i) => i.productId === productId);
+    if (!item) return;
+    const products = adjustStock(db.products, item.productId, item.variantId || null, item.qty);
+    const deliveryNotes = db.deliveryNotes.map((b) =>
+      b.id === blId ? { ...b, items: b.items.map((i) => (i.productId === productId ? { ...i, status: "echec" } : i)) } : b
+    );
+    persist({ ...db, products, deliveryNotes });
+    if (log) log("mark_item_echec", "deliveryNotes", blId, { number: bl.number, article: item.name });
+    notify(`${item.name} : échec, remis en stock (${bl.number})`);
   };
 
   // Encaissement d'un paiement client (cycle semaine / 10 jours / sur place)
   const encaisser = (c) => {
     const amount = Number(payAmounts[c.id]);
     if (!amount || amount <= 0) return notify("Montant invalide");
-    persist({ ...db, clients: db.clients.map((x) => (x.id === c.id ? { ...x, balanceDue: Math.max(0, (x.balanceDue || 0) - amount) } : x)) });
+    const payment = { id: uid(), date: today(), clientId: c.id, clientName: c.name, amount };
+    persist({
+      ...db,
+      clients: db.clients.map((x) => (x.id === c.id ? { ...x, balanceDue: Math.max(0, (x.balanceDue || 0) - amount) } : x)),
+      clientPayments: [...(db.clientPayments || []), payment],
+    });
     if (log) log("encaissement_client", "clients", c.id, { name: c.name, amount });
     setPayAmounts((p) => ({ ...p, [c.id]: "" }));
     notify(`Paiement de ${fmt(amount)} DHS encaissé pour ${c.name}`);
@@ -3430,29 +3584,66 @@ function Livraison({ db, persist, notify, log }) {
       <div className="space-y-3 mb-10">
         {[...db.deliveryNotes].reverse().map((b) => {
           const c = b.clientId ? db.clients.find((x) => x.id === b.clientId) : null;
+          const overall = colisOverallStatus(b);
           return (
-            <div key={b.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
-              <div>
-                <div style={monoFont} className="text-sm">{b.number}</div>
-                <div style={{ color: C.inkSoft }} className="text-xs">
-                  {b.client} · {b.date} · {b.items.length} article(s) · {fmt(b.montant || 0)} DHS
-                  {c && <> · {PAYMENT_MODE_LABELS[c.paymentMode || "surplace"]}</>}
+            <div key={b.id} className="rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <div>
+                  <div style={monoFont} className="text-sm">{b.number}</div>
+                  <div style={{ color: C.inkSoft }} className="text-xs">
+                    {b.client} · {b.date} · {b.items.length} article(s) · {fmt(b.montant || 0)} DHS
+                    {c && <> · {PAYMENT_MODE_LABELS[c.paymentMode || "surplace"]}</>}
+                  </div>
                 </div>
+                {overall === "partiel" ? (
+                  <span
+                    className="ek-badge inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2"
+                    style={{ ...monoFont, fontSize: 10, letterSpacing: "0.12em", color: C.accent, borderColor: C.accent, transform: "rotate(-2deg)" }}
+                  >
+                    <AlertCircle size={11} /> PARTIEL
+                  </span>
+                ) : (
+                  <Stamp
+                    status={overall === "livre" ? "paid" : overall === "echec" ? "returned" : "pending"}
+                    labels={["LIVRÉ", "EN ATTENTE"]}
+                  />
+                )}
               </div>
-              <Stamp
-                status={b.status === "livre" ? "paid" : b.status === "echec" ? "returned" : "pending"}
-                labels={["LIVRÉ", "EN ATTENTE"]}
-              />
-              {b.status === "attente" && (
-                <div className="flex gap-2">
-                  <button onClick={() => markDelivered(b.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                    Marquer livré
-                  </button>
-                  <button onClick={() => markEchec(b.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
-                    Échec de livraison
-                  </button>
-                </div>
-              )}
+
+              <div className="space-y-1.5 border-t pt-3" style={{ borderColor: C.border }}>
+                {b.items.map((it) => {
+                  const st = itemStatus(b, it);
+                  return (
+                    <div key={it.productId} className="flex items-center justify-between gap-2 text-sm">
+                      <div className="flex-1">
+                        <span style={{ color: C.ink }}>{it.name}</span>
+                        <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}> × {it.qty} · {fmt(it.qty * (it.unitPrice || 0))} DHS</span>
+                      </div>
+                      {st === "attente" ? (
+                        <div className="flex gap-1.5 shrink-0">
+                          <button onClick={() => markItemDelivered(b.id, it.productId)} className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
+                            Livré
+                          </button>
+                          <button onClick={() => markItemEchec(b.id, it.productId)} className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
+                            Échec
+                          </button>
+                        </div>
+                      ) : (
+                        <span
+                          className="text-[10px] px-2 py-0.5 rounded shrink-0"
+                          style={{
+                            ...monoFont,
+                            background: st === "livre" ? C.successSoft : C.dangerSoft,
+                            color: st === "livre" ? C.success : C.danger,
+                          }}
+                        >
+                          {st === "livre" ? "LIVRÉ" : "ÉCHEC"}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           );
         })}
