@@ -129,10 +129,13 @@ function variantLabel(v) {
   return [v.color, v.size, v.length].filter(Boolean).join(" / ");
 }
 function findByCode(products, code) {
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const target = norm(code);
+  if (!target) return null;
   for (const p of products) {
-    if (p.barcode === code || p.sku === code) return { product: p, variant: null };
+    if (norm(p.barcode) === target || norm(p.sku) === target) return { product: p, variant: null };
     if (p.variants) {
-      const v = p.variants.find((x) => x.barcode === code || x.sku === code);
+      const v = p.variants.find((x) => norm(x.barcode) === target || norm(x.sku) === target);
       if (v) return { product: p, variant: v };
     }
   }
@@ -2490,8 +2493,9 @@ function Ventes({ db, persist, notify, session }) {
 
   const handleCameraDetected = (code) => {
     setShowCamera(false);
-    const found = findByCode(db.products, code);
-    if (!found) return notify("Aucun produit avec ce code");
+    const cleanCode = String(code || "").trim();
+    const found = findByCode(db.products, cleanCode);
+    if (!found) return notify(`Aucun produit avec ce code (${cleanCode})`);
     addVariantToCart(found.product, found.variant);
   };
 
