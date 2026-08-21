@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -15,6 +15,7 @@ import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 import JsBarcode from "jsbarcode";
+import QRCode from "qrcode";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 // ---- Design tokens : identité Electrolik (noir / or, typographie tech) ----
@@ -1579,7 +1580,15 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
   const [expandedId, setExpandedId] = useState(null);
   const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "" });
   const [uploading, setUploading] = useState(false);
+  const [showQuickScan, setShowQuickScan] = useState(false);
+  const [quickScanResult, setQuickScanResult] = useState(null); // { found: bool, product, variant, code }
   const importInputRef = useRef(null);
+
+  const handleQuickScan = (code) => {
+    setShowQuickScan(false);
+    const found = findByCode(db.products, code);
+    setQuickScanResult(found ? { found: true, product: found.product, variant: found.variant } : { found: false, code });
+  };
 
   const importProductsExcel = (file) => {
     if (!file) return;
@@ -1788,6 +1797,31 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     };
   };
 
+  const printQrLabel = async (p, variant) => {
+    const label = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
+    const code = variant ? variant.barcode : p.barcode;
+    const dataUrl = await QRCode.toDataURL(code, { width: 220, margin: 1 });
+    const w = window.open("", "_blank", "width=320,height=420");
+    w.document.write(`
+      <html><head><title>QR — ${variant ? variant.sku : p.sku}</title>
+      <style>
+        body { font-family: Inter, sans-serif; text-align: center; padding: 16px; }
+        h3 { margin: 4px 0; }
+        img { margin-top: 8px; }
+        .price { font-size: 20px; font-weight: bold; margin-top: 8px; }
+        .code { font-family: monospace; font-size: 11px; color: #666; margin-top: 4px; }
+      </style></head>
+      <body>
+        <h3>${label}</h3>
+        <img src="${dataUrl}" width="200" height="200" />
+        <div class="code">${code}</div>
+        <div class="price">${fmt(p.price)} DHS</div>
+      </body></html>
+    `);
+    w.document.close();
+    setTimeout(() => w.print(), 300);
+  };
+
   const removeProduct = (id) => {
     const p = db.products.find((x) => x.id === id);
     const prevDb = db;
@@ -1932,6 +1966,13 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowQuickScan(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
+            style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
+          >
+            <QrCode size={14} /> Scanner rapide
+          </button>
           <input
             type="file"
             ref={importInputRef}
@@ -2056,7 +2097,8 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                       <div className="flex items-center gap-2 justify-end">
                         <button onClick={() => setExpandedId(expanded ? null : p.id)} title="Variantes"><Layers size={14} color={C.accent} /></button>
                         <button onClick={() => startEdit(p)} title="Modifier"><Pencil size={14} color={C.accent} /></button>
-                        <button onClick={() => printLabel(p)} title="Imprimer l'étiquette"><Printer size={14} color={C.inkSoft} /></button>
+                        <button onClick={() => printLabel(p)} title="Imprimer l'étiquette (code-barres)"><Printer size={14} color={C.inkSoft} /></button>
+                        <button onClick={() => printQrLabel(p)} title="Imprimer l'étiquette (QR code)"><QrCode size={14} color={C.inkSoft} /></button>
                         <button onClick={() => removeProduct(p.id)}><Trash2 size={14} color={C.danger} /></button>
                       </div>
                     </td>
@@ -2085,7 +2127,8 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                                     </td>
                                     <td className="py-2 text-right">
                                       <div className="flex items-center gap-2 justify-end">
-                                        <button onClick={() => printLabel(p, v)} title="Imprimer l'étiquette"><Printer size={13} color={C.inkSoft} /></button>
+                                        <button onClick={() => printLabel(p, v)} title="Imprimer l'étiquette (code-barres)"><Printer size={13} color={C.inkSoft} /></button>
+                                        <button onClick={() => printQrLabel(p, v)} title="Imprimer l'étiquette (QR code)"><QrCode size={13} color={C.inkSoft} /></button>
                                         <button onClick={() => removeVariant(p, v.id)}><Trash2 size={13} color={C.danger} /></button>
                                       </div>
                                     </td>
@@ -2124,6 +2167,46 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
           </tbody>
         </table>
       </div>
+
+      {showQuickScan && <CameraScanner onDetected={handleQuickScan} onClose={() => setShowQuickScan(false)} />}
+
+      {quickScanResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,24,43,0.85)" }} onClick={() => setQuickScanResult(null)}>
+          <div className="w-full max-w-sm rounded-xl p-6" style={{ background: C.paperCard }} onClick={(e) => e.stopPropagation()}>
+            {quickScanResult.found ? (
+              <>
+                <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Produit trouvé</div>
+                <div style={{ ...displayFont, color: C.ink }} className="text-xl italic mb-1">
+                  {quickScanResult.product.name}{quickScanResult.variant ? ` — ${variantLabel(quickScanResult.variant)}` : ""}
+                </div>
+                <div style={{ ...monoFont, color: C.inkSoft, fontSize: 12 }} className="mb-4">
+                  {quickScanResult.variant ? quickScanResult.variant.sku : quickScanResult.product.sku}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-md p-3" style={{ background: C.paper }}>
+                    <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Prix</div>
+                    <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(quickScanResult.product.price)} DHS</div>
+                  </div>
+                  <div className="rounded-md p-3" style={{ background: C.paper }}>
+                    <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Stock</div>
+                    <div style={{ ...monoFont, color: (quickScanResult.variant ? quickScanResult.variant.qty : quickScanResult.product.qty) <= 0 ? C.danger : C.ink }} className="text-lg">
+                      {quickScanResult.variant ? quickScanResult.variant.qty : quickScanResult.product.qty}
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ ...monoFont, fontSize: 11, color: C.danger }} className="uppercase tracking-widest mb-2">Aucun produit trouvé</div>
+                <p className="text-sm" style={{ color: C.inkSoft }}>Code scanné : {quickScanResult.code}</p>
+              </>
+            )}
+            <button onClick={() => setQuickScanResult(null)} className="w-full mt-5 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
+              Fermer
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
