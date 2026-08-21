@@ -15,7 +15,7 @@ import * as XLSX from "xlsx";
 import * as pdfjsLib from "pdfjs-dist";
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
 import JsBarcode from "jsbarcode";
-import { Html5Qrcode } from "html5-qrcode";
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
 // ---- Design tokens : identité Electrolik (noir / or, typographie tech) ----
 const LIGHT_THEME = {
@@ -130,13 +130,20 @@ function variantLabel(v) {
 }
 function findByCode(products, code) {
   const norm = (s) => String(s || "").trim().toLowerCase();
-  const target = norm(code);
-  if (!target) return null;
-  for (const p of products) {
-    if (norm(p.barcode) === target || norm(p.sku) === target) return { product: p, variant: null };
-    if (p.variants) {
-      const v = p.variants.find((x) => norm(x.barcode) === target || norm(x.sku) === target);
-      if (v) return { product: p, variant: v };
+  const raw = norm(code);
+  if (!raw) return null;
+  // Variantes à essayer : le code brut, avec un zéro ajouté devant (EAN-13 lu comme UPC-A),
+  // sans le premier zéro (cas inverse), et en ne gardant que les chiffres.
+  const digitsOnly = raw.replace(/[^0-9]/g, "");
+  const candidates = [raw, "0" + raw, raw.replace(/^0/, ""), digitsOnly, "0" + digitsOnly, digitsOnly.replace(/^0/, "")];
+  for (const target of candidates) {
+    if (!target) continue;
+    for (const p of products) {
+      if (norm(p.barcode) === target || norm(p.sku) === target) return { product: p, variant: null };
+      if (p.variants) {
+        const v = p.variants.find((x) => norm(x.barcode) === target || norm(x.sku) === target);
+        if (v) return { product: p, variant: v };
+      }
     }
   }
   return null;
@@ -619,17 +626,32 @@ function CameraScanner({ onDetected, onClose }) {
   const regionId = "camera-scan-region";
   const scannerRef = useRef(null);
   const [error, setError] = useState("");
+  const [lastRead, setLastRead] = useState("");
 
   useEffect(() => {
-    const scanner = new Html5Qrcode(regionId);
+    const scanner = new Html5Qrcode(regionId, {
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.CODABAR,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.QR_CODE,
+      ],
+      verbose: false,
+    });
     scannerRef.current = scanner;
     let stopped = false;
 
     scanner
       .start(
         { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 260, height: 160 } },
-        (decodedText) => {
+        { fps: 12, qrbox: { width: 300, height: 180 }, aspectRatio: 1.6, disableFlip: false },
+        (decodedText, decodedResult) => {
+          setLastRead(`${decodedText}${decodedResult && decodedResult.result && decodedResult.result.format ? " (" + decodedResult.result.format.formatName + ")" : ""}`);
           if (stopped) return;
           stopped = true;
           scanner.stop().catch(() => {}).finally(() => onDetected(decodedText));
@@ -656,7 +678,10 @@ function CameraScanner({ onDetected, onClose }) {
         ) : (
           <div id={regionId} style={{ width: "100%", borderRadius: 8, overflow: "hidden" }} />
         )}
-        <p className="text-xs mt-3 text-center" style={{ color: C.inkSoft }}>Pointez la caméra vers le code-barres du produit.</p>
+        <p className="text-xs mt-3 text-center" style={{ color: C.inkSoft }}>Pointez la caméra vers le code-barres du produit, à environ 10-15 cm, bien éclairé.</p>
+        {lastRead && (
+          <p className="text-xs mt-2 text-center" style={{ ...monoFont, color: C.accent }}>Dernier code lu : {lastRead}</p>
+        )}
       </div>
     </div>
   );
@@ -1563,7 +1588,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
       try {
         const wb = XLSX.read(evt.target.result, { type: "array" });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
         let products = [...db.products];
         let added = 0, updated = 0, skipped = 0;
         rows.forEach((r) => {
@@ -2241,7 +2266,7 @@ function Achats({ db, persist, notify, log }) {
       try {
         const wb = XLSX.read(evt.target.result, { type: "array" });
         const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
 
         let products = [...db.products];
         let suppliers = [...db.suppliers];
