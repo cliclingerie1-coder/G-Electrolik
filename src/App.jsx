@@ -4051,6 +4051,7 @@ function Livraison({ db, persist, notify, log }) {
   const [client, setClient] = useState("");
   const [items, setItems] = useState([]);
   const [payAmounts, setPayAmounts] = useState({});
+  const [productQ, setProductQ] = useState("");
 
   const addToCart = (p) => {
     setItems((c) => {
@@ -4145,13 +4146,25 @@ function Livraison({ db, persist, notify, log }) {
       <SectionTitle eyebrow="Logistique" title="Colis & Bons de livraison" />
       <div className="grid lg:grid-cols-3 gap-6 mb-10">
         <div className="lg:col-span-2">
+          <div className="flex items-center gap-2 border rounded-md px-3 py-2 mb-3 max-w-sm" style={{ borderColor: C.border, background: C.paperCard }}>
+            <Search size={14} color={C.inkSoft} />
+            <input
+              placeholder="Rechercher par nom ou code-barres…"
+              className="w-full outline-none text-sm bg-transparent"
+              style={{ color: C.ink }}
+              value={productQ}
+              onChange={(e) => setProductQ(e.target.value)}
+            />
+          </div>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {db.products.map((p) => (
-              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
-                <div className="text-sm" style={{ color: C.ink }}>{p.name}</div>
-                <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · {fmt(p.price)} DHS</div>
-              </button>
-            ))}
+            {db.products
+              .filter((p) => (p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(productQ.toLowerCase()))
+              .map((p) => (
+                <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
+                  <div className="text-sm" style={{ color: C.ink }}>{p.name}</div>
+                  <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · {fmt(p.price)} DHS</div>
+                </button>
+              ))}
           </div>
         </div>
         <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: C.paperCard }}>
