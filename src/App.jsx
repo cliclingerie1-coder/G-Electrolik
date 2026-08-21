@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -329,6 +329,7 @@ const DEFAULT_DB = {
   capital: 0,
   clients: [],
   clientPayments: [],
+  inventories: [],
   suppliers: [],
   supplierPayments: [],
   openingDebts: [],
@@ -337,7 +338,7 @@ const DEFAULT_DB = {
   nextQuote: 1,
   deliveryNotes: [],
   nextBL: 1,
-  company: { name: "Electrolik", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20 },
+  company: { name: "Electrolik", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20, monthlyTarget: 0 },
   charges: [],
   returns: [],
 };
@@ -471,6 +472,7 @@ export default function App() {
     { id: "ventes", label: "Ventes / PDV", icon: ShoppingCart },
     { id: "livraison", label: "Colis & Livraison", icon: ClipboardList },
     { id: "stock", label: "Stock", icon: Boxes },
+    { id: "inventaire", label: "Inventaire", icon: ClipboardCheck },
     { id: "clients", label: "Clients", icon: Users },
     { id: "fournisseurs", label: "Fournisseurs", icon: Truck },
     { id: "cheques", label: "Chèques", icon: Landmark },
@@ -568,6 +570,7 @@ export default function App() {
         {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} session={session} />}
         {tab === "livraison" && <Livraison db={db} persist={persist} notify={notify} log={log} />}
         {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} initialQuery={deepLinkQuery} />}
+        {tab === "inventaire" && <Inventaire db={db} persist={persist} notify={notify} log={log} />}
         {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} initialClientId={deepLinkClientId} />}
         {tab === "fournisseurs" && <Fournisseurs db={db} persist={persist} notify={notify} log={log} />}
         {tab === "cheques" && <Cheques db={db} persist={persist} notify={notify} log={log} />}
@@ -818,6 +821,10 @@ function Dashboard({ db }) {
   const rupture = db.products.filter((p) => productQty(p) <= 0);
   const lowStock = db.products.filter((p) => productQty(p) > 0 && productQty(p) <= p.minQty);
   const revenue = activeSales.reduce((s, sale) => s + sale.total, 0);
+  const currentMonth = today().slice(0, 7); // YYYY-MM
+  const monthRevenue = activeSales.filter((s) => s.date.slice(0, 7) === currentMonth).reduce((s, sale) => s + sale.total, 0);
+  const monthlyTarget = (db.company && db.company.monthlyTarget) || 0;
+  const targetPct = monthlyTarget > 0 ? Math.min(100, Math.round((monthRevenue / monthlyTarget) * 100)) : 0;
   const pendingInvoices = db.invoices.filter((i) => i.status === "pending");
   const grossMargin = activeSales.reduce((s, sale) => {
     const saleMargin = (sale.items || []).reduce((sm, item) => {
@@ -986,6 +993,28 @@ function Dashboard({ db }) {
           </div>
         )}
       </div>
+
+      {monthlyTarget > 0 && (
+        <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div className="flex items-center justify-between mb-3">
+            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">
+              Objectif de vente — {new Date(currentMonth + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+            </div>
+            <div style={{ ...monoFont, color: C.ink }} className="text-sm">
+              {fmt(monthRevenue)} / {fmt(monthlyTarget)} DHS
+            </div>
+          </div>
+          <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: C.border }}>
+            <div
+              className="h-full rounded-full transition-all"
+              style={{ width: `${targetPct}%`, background: targetPct >= 100 ? C.success : C.accent }}
+            />
+          </div>
+          <div className="mt-2 text-xs" style={{ color: C.inkSoft }}>
+            {targetPct >= 100 ? "🎉 Objectif atteint !" : `${targetPct}% atteint — ${fmt(Math.max(0, monthlyTarget - monthRevenue))} DHS restants`}
+          </div>
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-6 mb-8">
         <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
@@ -1225,6 +1254,147 @@ function Rapports({ db }) {
 }
 
 // ---------- Stock ----------
+// ---------- Inventaire physique ----------
+function Inventaire({ db, persist, notify, log }) {
+  const [counts, setCounts] = useState({});
+  const [q, setQ] = useState("");
+
+  const rows = useMemo(() => {
+    const out = [];
+    db.products.forEach((p) => {
+      if (p.variants && p.variants.length > 0) {
+        p.variants.forEach((v) => {
+          out.push({ key: p.id + "::" + v.id, productId: p.id, variantId: v.id, name: `${p.name} — ${variantLabel(v)}`, theoretical: v.qty || 0 });
+        });
+      } else {
+        out.push({ key: p.id, productId: p.id, variantId: null, name: p.name, theoretical: p.qty || 0 });
+      }
+    });
+    return out.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
+  }, [db.products, q]);
+
+  const setCount = (key, val) => setCounts((c) => ({ ...c, [key]: val }));
+
+  const validateInventory = () => {
+    const entries = rows
+      .map((r) => ({ ...r, counted: counts[r.key] !== undefined && counts[r.key] !== "" ? Number(counts[r.key]) : null }))
+      .filter((r) => r.counted !== null && r.counted !== r.theoretical);
+    if (entries.length === 0) return notify("Aucun écart à valider — les quantités saisies correspondent au stock théorique");
+
+    let products = [...db.products];
+    entries.forEach((e) => {
+      products = products.map((p) => {
+        if (p.id !== e.productId) return p;
+        if (e.variantId) {
+          return { ...p, variants: p.variants.map((v) => (v.id === e.variantId ? { ...v, qty: e.counted } : v)) };
+        }
+        return { ...p, qty: e.counted };
+      });
+    });
+
+    const record = {
+      id: uid(),
+      date: today(),
+      items: entries.map((e) => ({ name: e.name, theoretical: e.theoretical, counted: e.counted, ecart: e.counted - e.theoretical })),
+    };
+
+    persist({ ...db, products, inventories: [...(db.inventories || []), record] });
+    if (log) log("inventaire", "products", "-", { lignes: entries.length });
+    setCounts({});
+    notify(`Inventaire validé : ${entries.length} écart(s) ajusté(s) sur le stock`);
+  };
+
+  return (
+    <div>
+      <SectionTitle eyebrow="Contrôle" title="Inventaire physique" />
+      <p className="text-sm mb-5" style={{ color: C.inkSoft }}>
+        Comptez le stock réel produit par produit. Le stock sera automatiquement ajusté pour correspondre au comptage lors de la validation.
+      </p>
+
+      <div className="flex items-center gap-2 border rounded-xl px-3 py-2 max-w-sm mb-4" style={{ borderColor: C.border, background: C.paperCard }}>
+        <Search size={14} color={C.inkSoft} />
+        <input
+          placeholder="Rechercher un produit…"
+          className="w-full outline-none text-sm bg-transparent"
+          style={{ color: C.ink }}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
+
+      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+              <td className="px-4 py-3">Produit</td>
+              <td className="px-4 py-3">Stock théorique</td>
+              <td className="px-4 py-3">Quantité comptée</td>
+              <td className="px-4 py-3">Écart</td>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const counted = counts[r.key];
+              const ecart = counted !== undefined && counted !== "" ? Number(counted) - r.theoretical : null;
+              return (
+                <tr key={r.key} className="border-b" style={{ borderColor: C.border }}>
+                  <td className="px-4 py-3" style={{ color: C.ink }}>{r.name}</td>
+                  <td className="px-4 py-3" style={monoFont}>{r.theoretical}</td>
+                  <td className="px-4 py-3">
+                    <input
+                      type="number"
+                      placeholder={String(r.theoretical)}
+                      value={counted || ""}
+                      onChange={(e) => setCount(r.key, e.target.value)}
+                      className="w-24 border rounded-md px-2 py-1 text-sm"
+                      style={inputStyle}
+                    />
+                  </td>
+                  <td className="px-4 py-3" style={{ ...monoFont, color: ecart === null || ecart === 0 ? C.inkSoft : ecart > 0 ? C.success : C.danger }}>
+                    {ecart === null ? "—" : ecart > 0 ? `+${ecart}` : ecart}
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun produit.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <button onClick={validateInventory} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white mb-10" style={{ background: C.accent }}>
+        <CheckCircle2 size={14} /> Valider l'inventaire
+      </button>
+
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique des inventaires</div>
+      <div className="space-y-3">
+        {[...(db.inventories || [])].reverse().map((inv) => (
+          <div key={inv.id} className="rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
+            <div className="flex justify-between text-sm mb-2">
+              <span style={monoFont}>{inv.date}</span>
+              <span style={{ color: C.inkSoft }}>{inv.items.length} écart(s) ajusté(s)</span>
+            </div>
+            <ul className="text-xs space-y-1">
+              {inv.items.map((it, idx) => (
+                <li key={idx} className="flex justify-between">
+                  <span style={{ color: C.ink }}>{it.name}</span>
+                  <span style={{ ...monoFont, color: it.ecart > 0 ? C.success : C.danger }}>
+                    {it.theoretical} → {it.counted} ({it.ecart > 0 ? "+" : ""}{it.ecart})
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+        {(!db.inventories || db.inventories.length === 0) && (
+          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun inventaire réalisé pour l'instant.</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Stock({ db, persist, notify, log, session, initialQuery }) {
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
   const [q, setQ] = useState(initialQuery || "");
@@ -3393,9 +3563,50 @@ function Cheques({ db, persist, notify, log }) {
     if (c) notify(`Chèque "${c.number}" supprimé`, () => persist(prevDb));
   };
 
+  const echeances = useMemo(() => {
+    const todayStr = today();
+    const daysUntil = (d) => Math.floor((new Date(d) - new Date(todayStr)) / 86400000);
+    const chequesDue = db.cheques
+      .filter((c) => c.status === "pending")
+      .map((c) => ({ kind: "cheque", label: `Chèque ${c.number} (${c.type === "received" ? "reçu de" : "à payer à"} ${c.party})`, amount: c.amount, date: c.dueDate, days: daysUntil(c.dueDate) }));
+    const suppliersDue = (db.suppliers || [])
+      .filter((s) => (s.balanceDue || 0) > 0)
+      .map((s) => ({ kind: "fournisseur", label: `Solde dû à ${s.name}`, amount: s.balanceDue, date: null, days: null }));
+    return [...chequesDue.sort((a, b) => a.days - b.days), ...suppliersDue.sort((a, b) => b.amount - a.amount)];
+  }, [db.cheques, db.suppliers]);
+
   return (
     <div>
       <SectionTitle eyebrow="Trésorerie" title="Chèques" />
+
+      {echeances.length > 0 && (
+        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Prochaines échéances</div>
+          <div className="space-y-2">
+            {echeances.map((e, idx) => (
+              <div key={idx} className="flex items-center justify-between text-sm py-1.5 border-b" style={{ borderColor: C.border }}>
+                <div className="flex-1">
+                  <span style={{ color: C.ink }}>{e.label}</span>
+                  {e.date && (
+                    <span
+                      className="ml-2 text-[10px] px-2 py-0.5 rounded"
+                      style={{
+                        ...monoFont,
+                        background: e.days < 0 ? C.dangerSoft : e.days <= 7 ? C.accentSoft : C.border,
+                        color: e.days < 0 ? C.danger : e.days <= 7 ? "#8A6D00" : C.inkSoft,
+                      }}
+                    >
+                      {e.days < 0 ? `En retard (${Math.abs(e.days)} j)` : e.days === 0 ? "Aujourd'hui" : `Dans ${e.days} j`}
+                    </span>
+                  )}
+                </div>
+                <span style={{ ...monoFont, color: C.ink }}>{fmt(e.amount)} DHS</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau chèque</div>
         <div className="grid md:grid-cols-6 gap-3">
@@ -4127,6 +4338,9 @@ function Finance({ db, persist, notify, log, session }) {
           </Field>
           <Field label="Adresse">
             <input className={inputClass} style={inputStyle} value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} />
+          </Field>
+          <Field label="Objectif de vente mensuel (DHS)">
+            <input type="number" className={inputClass} style={inputStyle} value={company.monthlyTarget || 0} onChange={(e) => setCompany({ ...company, monthlyTarget: Number(e.target.value) })} />
           </Field>
         </div>
         <button onClick={saveCompany} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
