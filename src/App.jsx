@@ -362,6 +362,38 @@ export default function App() {
     try { localStorage.setItem("ek-theme", next); } catch (e) {}
   };
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [deepLinkClientId, setDeepLinkClientId] = useState(null);
+  const [deepLinkQuery, setDeepLinkQuery] = useState("");
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const handleSearchSelect = (result) => {
+    setSearchOpen(false);
+    if (result.type === "client") {
+      setDeepLinkClientId(result.id);
+      setTab("clients");
+    } else if (result.type === "product") {
+      setDeepLinkQuery(result.label);
+      setTab("stock");
+    } else if (result.type === "supplier") {
+      setTab("fournisseurs");
+    } else if (result.type === "invoice") {
+      setTab("facturation");
+    } else if (result.type === "colis") {
+      setTab("livraison");
+    }
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -476,6 +508,14 @@ export default function App() {
           <div style={{ ...monoFont, color: C.sidebarText }} className="text-[10px] tracking-[0.2em] uppercase mt-2">
             Gestion Pro — Registre de commerce
           </div>
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="mt-4 w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs"
+            style={{ background: "rgba(255,255,255,0.06)", color: C.sidebarText }}
+          >
+            <Search size={13} /> Rechercher…
+            <span style={{ ...monoFont, fontSize: 9 }} className="ml-auto opacity-60">⌘K</span>
+          </button>
         </div>
         <nav className="flex md:flex-col flex-1 md:px-3 md:pb-6 overflow-x-auto">
           {nav.map((n, i) => {
@@ -527,8 +567,8 @@ export default function App() {
         {tab === "achats" && <Achats db={db} persist={persist} notify={notify} log={log} />}
         {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} session={session} />}
         {tab === "livraison" && <Livraison db={db} persist={persist} notify={notify} log={log} />}
-        {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} />}
-        {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} />}
+        {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} initialQuery={deepLinkQuery} />}
+        {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} initialClientId={deepLinkClientId} />}
         {tab === "fournisseurs" && <Fournisseurs db={db} persist={persist} notify={notify} log={log} />}
         {tab === "cheques" && <Cheques db={db} persist={persist} notify={notify} log={log} />}
         {tab === "facturation" && <Facturation db={db} persist={persist} notify={notify} log={log} />}
@@ -537,6 +577,8 @@ export default function App() {
         {tab === "equipe" && session.role === "admin" && <Equipe session={session} notify={notify} log={log} />}
         {tab === "audit" && session.role === "admin" && <AuditLog session={session} />}
       </main>
+
+      {searchOpen && <GlobalSearch db={db} onSelect={handleSearchSelect} onClose={() => setSearchOpen(false)} />}
 
       {toast && (
         <div
@@ -1183,9 +1225,9 @@ function Rapports({ db }) {
 }
 
 // ---------- Stock ----------
-function Stock({ db, persist, notify, log, session }) {
+function Stock({ db, persist, notify, log, session, initialQuery }) {
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(initialQuery || "");
   const [stockFilter, setStockFilter] = useState("all"); // all | low | out
   const [editingId, setEditingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
@@ -2825,9 +2867,117 @@ function ClientDetail({ db, client, onBack, onWhatsapp }) {
   );
 }
 
-function Clients({ db, persist, notify, log }) {
+// ---------- Recherche globale (Ctrl+K) ----------
+function GlobalSearch({ db, onSelect, onClose }) {
+  const [q, setQ] = useState("");
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    inputRef.current && inputRef.current.focus();
+  }, []);
+
+  const results = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    if (!term) return [];
+    const out = [];
+    db.clients.forEach((c) => {
+      if ((c.name + " " + (c.phone || "")).toLowerCase().includes(term)) {
+        out.push({ type: "client", icon: Users, label: c.name, sub: c.phone || "Client", id: c.id });
+      }
+    });
+    db.products.forEach((p) => {
+      if ((p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(term)) {
+        out.push({ type: "product", icon: Boxes, label: p.name, sub: `${p.sku} · ${fmt(p.price)} DHS`, id: p.id });
+      }
+    });
+    db.suppliers.forEach((s) => {
+      if (s.name.toLowerCase().includes(term)) {
+        out.push({ type: "supplier", icon: Truck, label: s.name, sub: "Fournisseur", id: s.id });
+      }
+    });
+    db.invoices.forEach((inv) => {
+      if ((inv.number + " " + inv.client).toLowerCase().includes(term)) {
+        out.push({ type: "invoice", icon: Receipt, label: inv.number, sub: `${inv.client} · ${fmt(inv.total)} DHS`, id: inv.id });
+      }
+    });
+    db.deliveryNotes.forEach((b) => {
+      if ((b.number + " " + b.client).toLowerCase().includes(term)) {
+        out.push({ type: "colis", icon: ClipboardList, label: b.number, sub: b.client, id: b.id });
+      }
+    });
+    return out.slice(0, 25);
+  }, [q, db]);
+
+  const groups = [
+    { type: "client", label: "Clients" },
+    { type: "product", label: "Produits" },
+    { type: "supplier", label: "Fournisseurs" },
+    { type: "invoice", label: "Factures" },
+    { type: "colis", label: "Colis" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4"
+      style={{ background: "rgba(12,13,16,0.55)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-lg rounded-xl border overflow-hidden"
+        style={{ borderColor: C.border, background: C.paperCard, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: C.border }}>
+          <Search size={16} color={C.inkSoft} />
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => e.key === "Escape" && onClose()}
+            placeholder="Rechercher un client, produit, fournisseur, facture, colis…"
+            className="w-full outline-none text-sm bg-transparent"
+            style={{ color: C.ink }}
+          />
+          <span style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="px-1.5 py-0.5 border rounded" >ESC</span>
+        </div>
+        <div className="max-h-96 overflow-y-auto">
+          {q.trim() === "" ? (
+            <div className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Tapez pour rechercher partout dans l'application.</div>
+          ) : results.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun résultat pour "{q}".</div>
+          ) : (
+            groups.map((g) => {
+              const items = results.filter((r) => r.type === g.type);
+              if (items.length === 0) return null;
+              return (
+                <div key={g.type} className="py-2">
+                  <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest px-4 py-1">{g.label}</div>
+                  {items.map((r) => (
+                    <button
+                      key={r.type + r.id}
+                      onClick={() => onSelect(r)}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-black/5"
+                    >
+                      <r.icon size={15} color={C.inkSoft} />
+                      <div className="flex-1">
+                        <div className="text-sm" style={{ color: C.ink }}>{r.label}</div>
+                        <div className="text-xs" style={{ color: C.inkSoft }}>{r.sub}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Clients({ db, persist, notify, log, initialClientId }) {
   const [form, setForm] = useState({ name: "", phone: "", paymentMode: "surplace" });
-  const [viewClientId, setViewClientId] = useState(null);
+  const [viewClientId, setViewClientId] = useState(initialClientId || null);
 
   const addClient = () => {
     if (!form.name) return notify("Nom requis");
