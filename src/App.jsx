@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -333,6 +333,7 @@ const DEFAULT_DB = {
   clients: [],
   clientPayments: [],
   inventories: [],
+  marketplaceSettings: { commissionRate: 15.73, serviceFee: 180 },
   suppliers: [],
   supplierPayments: [],
   openingDebts: [],
@@ -476,6 +477,7 @@ export default function App() {
     { id: "livraison", label: "Colis & Livraison", icon: ClipboardList },
     { id: "stock", label: "Stock", icon: Boxes },
     { id: "inventaire", label: "Inventaire", icon: ClipboardCheck },
+    { id: "calculateur", label: "Calculateur marketplace", icon: Calculator },
     { id: "clients", label: "Clients", icon: Users },
     { id: "fournisseurs", label: "Fournisseurs", icon: Truck },
     { id: "cheques", label: "Chèques", icon: Landmark },
@@ -574,6 +576,7 @@ export default function App() {
         {tab === "livraison" && <Livraison db={db} persist={persist} notify={notify} log={log} />}
         {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} initialQuery={deepLinkQuery} />}
         {tab === "inventaire" && <Inventaire db={db} persist={persist} notify={notify} log={log} />}
+        {tab === "calculateur" && <MarketplaceCalculator db={db} persist={persist} notify={notify} />}
         {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} initialClientId={deepLinkClientId} />}
         {tab === "fournisseurs" && <Fournisseurs db={db} persist={persist} notify={notify} log={log} />}
         {tab === "cheques" && <Cheques db={db} persist={persist} notify={notify} log={log} />}
@@ -1393,6 +1396,151 @@ function Inventaire({ db, persist, notify, log }) {
         {(!db.inventories || db.inventories.length === 0) && (
           <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun inventaire réalisé pour l'instant.</div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Calculateur marketplace (commission + service, mode normal et inverse) ----------
+function MarketplaceCalculator({ db, persist, notify }) {
+  const saved = db.marketplaceSettings || { commissionRate: 15.73, serviceFee: 180 };
+  const [commissionRate, setCommissionRate] = useState(saved.commissionRate);
+  const [serviceFee, setServiceFee] = useState(saved.serviceFee);
+  const [mode, setMode] = useState("direct"); // direct | reverse
+  const [cost, setCost] = useState("");
+  const [sellingPrice, setSellingPrice] = useState("");
+  const [desiredProfit, setDesiredProfit] = useState("");
+
+  const saveSettings = () => {
+    persist({ ...db, marketplaceSettings: { commissionRate: Number(commissionRate) || 0, serviceFee: Number(serviceFee) || 0 } });
+    notify("Paramètres enregistrés");
+  };
+
+  const c = Number(cost) || 0;
+  const rate = Number(commissionRate) || 0;
+  const svc = Number(serviceFee) || 0;
+
+  // Mode direct : je connais le prix affiché sur leur site → je veux mon profit exact
+  let directResult = null;
+  if (mode === "direct" && sellingPrice !== "") {
+    const sp = Number(sellingPrice) || 0;
+    const commissionAmount = sp * (rate / 100);
+    const net = sp - commissionAmount - svc;
+    const profit = net - c;
+    directResult = { sp, commissionAmount, net, profit };
+  }
+
+  // Mode inverse : je connais le profit que je veux garder → quel prix fixer sur leur site
+  let reverseResult = null;
+  if (mode === "reverse" && desiredProfit !== "") {
+    const dp = Number(desiredProfit) || 0;
+    const denom = 1 - rate / 100;
+    if (denom > 0) {
+      const sp = (dp + svc + c) / denom;
+      const commissionAmount = sp * (rate / 100);
+      const net = sp - commissionAmount - svc;
+      reverseResult = { sp, commissionAmount, net, profit: net - c };
+    }
+  }
+
+  return (
+    <div>
+      <SectionTitle eyebrow="Revente en ligne" title="Calculateur marketplace" />
+      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
+        Calcule ton profit réel après commission et frais de service, ou trouve directement le prix à fixer sur leur site pour garder le profit que tu veux.
+      </p>
+
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Paramètres de la plateforme</div>
+        <div className="grid sm:grid-cols-3 gap-3 items-end">
+          <Field label="Commission (%)">
+            <input type="number" step="0.01" className={inputClass} style={inputStyle} value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} />
+          </Field>
+          <Field label="Frais de service fixe (DHS)">
+            <input type="number" className={inputClass} style={inputStyle} value={serviceFee} onChange={(e) => setServiceFee(e.target.value)} />
+          </Field>
+          <button onClick={saveSettings} className="px-4 py-2 rounded-md text-sm border h-fit" style={{ borderColor: C.border, color: C.ink }}>
+            <Save size={13} className="inline mr-1" /> Enregistrer par défaut
+          </button>
+        </div>
+        <p className="text-xs mt-2" style={{ color: C.inkSoft }}>
+          Ces taux peuvent changer selon le produit — modifie-les à chaque calcul si besoin, et clique "Enregistrer" pour en faire les valeurs par défaut.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-1 border rounded-xl p-1 mb-6 w-fit" style={{ borderColor: C.border, background: C.paperCard }}>
+        <button
+          onClick={() => setMode("direct")}
+          className="text-sm px-4 py-2 rounded-md"
+          style={{ background: mode === "direct" ? C.accent : "transparent", color: mode === "direct" ? "#fff" : C.inkSoft }}
+        >
+          J'ai un prix de vente
+        </button>
+        <button
+          onClick={() => setMode("reverse")}
+          className="text-sm px-4 py-2 rounded-md"
+          style={{ background: mode === "reverse" ? C.accent : "transparent", color: mode === "reverse" ? "#fff" : C.inkSoft }}
+        >
+          Je veux un profit précis
+        </button>
+      </div>
+
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
+            {mode === "direct" ? "Prix affiché sur leur site" : "Profit que je veux garder"}
+          </div>
+          <Field label="Coût d'achat du produit (DHS)">
+            <input type="number" className={inputClass} style={{ ...inputStyle, marginBottom: 12 }} value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Ex: 250" />
+          </Field>
+          {mode === "direct" ? (
+            <Field label="Prix de vente sur leur site (DHS)">
+              <input type="number" className={inputClass} style={inputStyle} value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} placeholder="Ex: 400" />
+            </Field>
+          ) : (
+            <Field label="Profit net souhaité (DHS)">
+              <input type="number" className={inputClass} style={inputStyle} value={desiredProfit} onChange={(e) => setDesiredProfit(e.target.value)} placeholder="Ex: 100" />
+            </Field>
+          )}
+        </div>
+
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Résultat</div>
+          {mode === "direct" ? (
+            directResult ? (
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Prix de vente</span><span style={monoFont}>{fmt(directResult.sp)} DHS</span></div>
+                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Commission ({rate}%)</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(directResult.commissionAmount)} DHS</span></div>
+                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Frais de service</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(svc)} DHS</span></div>
+                <div className="flex justify-between border-t pt-2" style={{ borderColor: C.border }}><span style={{ color: C.ink }}>Net reçu</span><span style={monoFont}>{fmt(directResult.net)} DHS</span></div>
+                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Coût du produit</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(c)} DHS</span></div>
+                <div className="flex justify-between border-t pt-2" style={{ borderColor: C.border }}>
+                  <span style={{ ...displayFont, color: C.ink }} className="italic">Profit final</span>
+                  <span style={{ ...displayFont, color: directResult.profit >= 0 ? C.success : C.danger }} className="text-xl italic">{fmt(directResult.profit)} DHS</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm" style={{ color: C.inkSoft }}>Entre un prix de vente pour voir le résultat.</p>
+            )
+          ) : reverseResult ? (
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between border-b pb-2" style={{ borderColor: C.border }}>
+                <span style={{ ...displayFont, color: C.ink }} className="italic">Prix à fixer sur leur site</span>
+                <span style={{ ...displayFont, color: C.accent }} className="text-xl italic">{fmt(reverseResult.sp)} DHS</span>
+              </div>
+              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Commission ({rate}%)</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(reverseResult.commissionAmount)} DHS</span></div>
+              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Frais de service</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(svc)} DHS</span></div>
+              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Net reçu</span><span style={monoFont}>{fmt(reverseResult.net)} DHS</span></div>
+              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Coût du produit</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(c)} DHS</span></div>
+              <div className="flex justify-between border-t pt-2" style={{ borderColor: C.border }}>
+                <span style={{ color: C.ink }}>Profit obtenu</span>
+                <span style={{ ...monoFont, color: C.success }}>{fmt(reverseResult.profit)} DHS</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm" style={{ color: C.inkSoft }}>Entre le profit que tu veux garder pour voir le prix à fixer.</p>
+          )}
+        </div>
       </div>
     </div>
   );
