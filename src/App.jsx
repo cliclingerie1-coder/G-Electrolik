@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise, Bell
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise, Bell, Globe
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -327,6 +327,66 @@ async function sbLoadLatestBackup(session) {
   }
 }
 
+// ---------- Boutique en ligne (site public) ----------
+async function sbSyncPublicProducts(session, products) {
+  const rows = (products || [])
+    .filter((p) => p.publishedOnline)
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category || "",
+      price: p.price || 0,
+      image_url: p.image || "",
+      in_stock: productQty(p) > 0,
+      updated_at: new Date().toISOString(),
+    }));
+  if (rows.length === 0) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/public_products?on_conflict=id`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(rows),
+    });
+  } catch (e) {
+    console.error("Sync boutique en ligne error", e);
+  }
+}
+
+async function sbFetchOnlineOrders(session) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/online_orders?select=*&order=created_at.desc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.accessToken}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error("Fetch online orders error", e);
+    return [];
+  }
+}
+
+async function sbUpdateOrderStatus(session, orderId, status) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/online_orders?id=eq.${orderId}`, {
+      method: "PATCH",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ status }),
+    });
+  } catch (e) {
+    console.error("Update order status error", e);
+  }
+}
+
 const DEFAULT_DB = {
   products: [
     { id: uid(), name: "Crème hydratante 50ml", sku: "COS-001", barcode: uidBarcode(), category: "Soin visage", price: 89, costPrice: 55, qty: 24, minQty: 5 },
@@ -465,7 +525,10 @@ export default function App() {
     } catch (e) {
       console.error("Storage error", e);
     }
-    if (session) sbSaveBackup(session, next); // sauvegarde cloud automatique, en arrière-plan
+    if (session) {
+      sbSaveBackup(session, next); // sauvegarde cloud automatique, en arrière-plan
+      sbSyncPublicProducts(session, next.products); // maintient le catalogue du site à jour
+    }
   };
 
   // Synchronisation automatique : vérifie toutes les 20s si un autre appareil a mis à jour les données
@@ -526,6 +589,7 @@ export default function App() {
     { id: "stock", label: "Stock", icon: Boxes },
     { id: "inventaire", label: "Inventaire", icon: ClipboardCheck },
     { id: "caisse", label: "Caisse", icon: Wallet },
+    { id: "commandes", label: "Commandes en ligne", icon: Globe },
     { id: "calculateur", label: "Calculateur marketplace", icon: Calculator },
     { id: "clients", label: "Clients", icon: Users },
     { id: "fournisseurs", label: "Fournisseurs", icon: Truck },
@@ -630,6 +694,7 @@ export default function App() {
         {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} initialQuery={deepLinkQuery} />}
         {tab === "inventaire" && <Inventaire db={db} persist={persist} notify={notify} log={log} />}
         {tab === "caisse" && <Caisse db={db} persist={persist} notify={notify} log={log} />}
+        {tab === "commandes" && <CommandesEnLigne db={db} persist={persist} notify={notify} log={log} session={session} />}
         {tab === "calculateur" && <MarketplaceCalculator db={db} persist={persist} notify={notify} />}
         {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} initialClientId={deepLinkClientId} />}
         {tab === "fournisseurs" && <Fournisseurs db={db} persist={persist} notify={notify} log={log} />}
@@ -1981,6 +2046,132 @@ function Caisse({ db, persist, notify, log }) {
   );
 }
 
+// ---------- Commandes en ligne (issues du site public) ----------
+function CommandesEnLigne({ db, persist, notify, log, session }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    setOrders(await sbFetchOnlineOrders(session));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const updateStatus = async (order, status) => {
+    await sbUpdateOrderStatus(session, order.id, status);
+    setOrders((list) => list.map((o) => (o.id === order.id ? { ...o, status } : o)));
+    if (log) log("update_commande_ligne", "online_orders", order.id, { status });
+
+    // Confirmer une commande décrémente le stock correspondant côté Electrolik
+    if (status === "confirmee" && order.status !== "confirmee") {
+      let products = db.products;
+      (order.items || []).forEach((i) => {
+        products = adjustStock(products, i.product_id, null, -i.qty);
+      });
+      persist({ ...db, products });
+    }
+  };
+
+  const statusLabels = { nouvelle: "Nouvelle", confirmee: "Confirmée", expediee: "Expédiée", annulee: "Annulée" };
+  const statusColors = { nouvelle: C.accent, confirmee: C.success, expediee: C.inkSoft, annulee: C.danger };
+
+  return (
+    <div>
+      <SectionTitle
+        eyebrow="Boutique en ligne"
+        title="Commandes en ligne"
+        action={
+          <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
+            <RotateCcw size={13} /> Actualiser
+          </button>
+        }
+      />
+      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
+        Commandes passées sur le site web. Comme la société de livraison n'a pas d'API, copie les infos client ci-dessous pour créer l'envoi manuellement sur leur plateforme.
+      </p>
+
+      {loading ? (
+        <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
+      ) : orders.length === 0 ? (
+        <div className="text-center py-16 text-sm" style={{ color: C.inkSoft }}>Aucune commande pour l'instant.</div>
+      ) : (
+        <div className="space-y-4">
+          {orders.map((o) => (
+            <div key={o.id} className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                <div>
+                  <div style={{ ...displayFont, color: C.ink }} className="text-lg italic">{o.client_name}</div>
+                  <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{new Date(o.created_at).toLocaleString("fr-FR")}</div>
+                </div>
+                <span
+                  className="text-[11px] px-2.5 py-1 rounded-full"
+                  style={{ ...monoFont, background: statusColors[o.status] + "22", color: statusColors[o.status] }}
+                >
+                  {statusLabels[o.status] || o.status}
+                </span>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4 mb-4">
+                <div className="rounded-md p-3" style={{ background: C.paper }}>
+                  <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Coordonnées (pour la livraison)</div>
+                  <div className="text-sm" style={{ color: C.ink }}>{o.client_name}</div>
+                  <div className="text-sm" style={{ color: C.ink }}>{o.client_phone}</div>
+                  <div className="text-sm" style={{ color: C.ink }}>{o.client_address}, {o.client_city}</div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${o.client_name}\n${o.client_phone}\n${o.client_address}, ${o.client_city}\nMontant COD: ${fmt(o.total)} DHS`);
+                      notify("Coordonnées copiées");
+                    }}
+                    className="text-xs mt-2 px-2 py-1 rounded-md border"
+                    style={{ borderColor: C.border, color: C.inkSoft }}
+                  >
+                    Copier pour la société de livraison
+                  </button>
+                </div>
+                <div className="rounded-md p-3" style={{ background: C.paper }}>
+                  <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Articles</div>
+                  {(o.items || []).map((i, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span style={{ color: C.ink }}>{i.name} × {i.qty}</span>
+                      <span style={monoFont}>{fmt(i.price * i.qty)} DHS</span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm mt-2 pt-2 border-t" style={{ borderColor: C.border }}>
+                    <span style={{ color: C.ink }}>Total (COD)</span>
+                    <span style={{ ...monoFont, color: C.ink }}>{fmt(o.total)} DHS</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 flex-wrap">
+                {o.status === "nouvelle" && (
+                  <button onClick={() => updateStatus(o, "confirmee")} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
+                    Confirmer (décrémenter le stock)
+                  </button>
+                )}
+                {o.status === "confirmee" && (
+                  <button onClick={() => updateStatus(o, "expediee")} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.inkSoft, color: C.inkSoft }}>
+                    Marquer expédiée
+                  </button>
+                )}
+                {o.status !== "annulee" && o.status !== "expediee" && (
+                  <button onClick={() => updateStatus(o, "annulee")} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
+                    Annuler
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Stock({ db, persist, notify, log, session, initialQuery }) {
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
   const [q, setQ] = useState(initialQuery || "");
@@ -2229,6 +2420,12 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     `);
     w.document.close();
     setTimeout(() => w.print(), 300);
+  };
+
+  const togglePublished = (id) => {
+    const p = db.products.find((x) => x.id === id);
+    persist({ ...db, products: db.products.map((x) => (x.id === id ? { ...x, publishedOnline: !x.publishedOnline } : x)) });
+    notify(p && p.publishedOnline ? `${p.name} retiré du site` : `${p ? p.name : "Produit"} publié sur le site`);
   };
 
   const removeProduct = (id) => {
@@ -2508,6 +2705,12 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                         <button onClick={() => startEdit(p)} title="Modifier"><Pencil size={14} color={C.accent} /></button>
                         <button onClick={() => printLabel(p)} title="Imprimer l'étiquette (code-barres)"><Printer size={14} color={C.inkSoft} /></button>
                         <button onClick={() => printQrLabel(p)} title="Imprimer l'étiquette (QR code)"><QrCode size={14} color={C.inkSoft} /></button>
+                        <button
+                          onClick={() => togglePublished(p.id)}
+                          title={p.publishedOnline ? "Retirer du site en ligne" : "Publier sur le site en ligne"}
+                        >
+                          <Globe size={14} color={p.publishedOnline ? C.success : C.inkSoft} />
+                        </button>
                         <button onClick={() => removeProduct(p.id)}><Trash2 size={14} color={C.danger} /></button>
                       </div>
                     </td>
