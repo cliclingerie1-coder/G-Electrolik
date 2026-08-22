@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise, Bell
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -380,6 +380,43 @@ export default function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [deepLinkClientId, setDeepLinkClientId] = useState(null);
   const [deepLinkQuery, setDeepLinkQuery] = useState("");
+  const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("ek-notif-enabled") === "1");
+
+  const toggleNotifications = async () => {
+    if (!("Notification" in window)) return;
+    if (!notifEnabled) {
+      const perm = await Notification.requestPermission();
+      if (perm === "granted") {
+        setNotifEnabled(true);
+        localStorage.setItem("ek-notif-enabled", "1");
+        new Notification("Electrolik Gestion Pro", { body: "Notifications activées ✅" });
+      }
+    } else {
+      setNotifEnabled(false);
+      localStorage.setItem("ek-notif-enabled", "0");
+    }
+  };
+
+  // Vérifie une fois par jour (au chargement / changement de données) s'il y a des rappels urgents
+  useEffect(() => {
+    if (!notifEnabled || !session || !("Notification" in window) || Notification.permission !== "granted") return;
+    const todayStr = today();
+    if (localStorage.getItem("ek-last-notif-date") === todayStr) return;
+
+    const daysUntil = (d) => Math.floor((new Date(d) - new Date(todayStr)) / 86400000);
+    const clientsToRemind = (db.clients || []).filter(
+      (c) => (c.balanceDue || 0) > 0 && (c.paymentMode === "hebdo" || c.paymentMode === "10j")
+    );
+    const echeancesUrgentes = (db.cheques || []).filter((c) => c.status === "pending" && daysUntil(c.dueDate) <= 2);
+    const parts = [];
+    if (clientsToRemind.length > 0) parts.push(`${clientsToRemind.length} client(s) à relancer`);
+    if (echeancesUrgentes.length > 0) parts.push(`${echeancesUrgentes.length} échéance(s) de chèque proche(s)`);
+
+    if (parts.length > 0) {
+      new Notification("Electrolik Gestion Pro", { body: parts.join(" · ") });
+      localStorage.setItem("ek-last-notif-date", todayStr);
+    }
+  }, [notifEnabled, session, db.clients, db.cheques]);
 
   useEffect(() => {
     const onKeyDown = (e) => {
@@ -567,6 +604,9 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <button onClick={toggleNotifications} title={notifEnabled ? "Désactiver les notifications" : "Activer les notifications"}>
+                <Bell size={16} color={notifEnabled ? C.accent : C.sidebarText} />
+              </button>
               <button onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>
                 {theme === "dark" ? <Sun size={16} color={C.sidebarText} /> : <Moon size={16} color={C.sidebarText} />}
               </button>
@@ -947,6 +987,45 @@ function Dashboard({ db, session }) {
       .slice(0, 8);
   }, [db.products, db.sales]);
 
+  // Suggestions de réapprovisionnement : basées sur la vitesse de vente des 30 derniers jours
+  const reorderSuggestions = useMemo(() => {
+    const todayStr = today();
+    const cutoff = new Date(todayStr);
+    cutoff.setDate(cutoff.getDate() - 30);
+    const soldQty = {};
+    activeSales
+      .filter((s) => new Date(s.date) >= cutoff)
+      .forEach((s) => (s.items || []).forEach((i) => { soldQty[i.productId] = (soldQty[i.productId] || 0) + i.qty; }));
+    return db.products
+      .map((p) => {
+        const qty = productQty(p);
+        const sold30 = soldQty[p.id] || 0;
+        const dailyRate = sold30 / 30;
+        const daysLeft = dailyRate > 0 ? Math.floor(qty / dailyRate) : Infinity;
+        const suggestedQty = dailyRate > 0 ? Math.max(0, Math.ceil(dailyRate * 30) - qty) : 0;
+        return { ...p, sold30, daysLeft, suggestedQty };
+      })
+      .filter((p) => p.sold30 > 0 && p.daysLeft <= 14)
+      .sort((a, b) => a.daysLeft - b.daysLeft)
+      .slice(0, 8);
+  }, [db.products, db.sales]);
+
+  // Rentabilité par catégorie : marge générée sur les ventes actives
+  const categoryProfitability = useMemo(() => {
+    const map = {};
+    activeSales.forEach((s) =>
+      (s.items || []).forEach((i) => {
+        const prod = db.products.find((p) => p.id === i.productId);
+        const cat = prod ? prod.category || "Général" : "Général";
+        const cost = prod ? prod.costPrice || 0 : 0;
+        if (!map[cat]) map[cat] = { category: cat, revenue: 0, margin: 0 };
+        map[cat].revenue += i.price * i.qty;
+        map[cat].margin += (i.price - cost) * i.qty;
+      })
+    );
+    return Object.values(map).sort((a, b) => b.margin - a.margin);
+  }, [db.products, db.sales]);
+
   return (
     <div>
       <SectionTitle eyebrow="Vue d'ensemble" title="Tableau de bord" />
@@ -1102,6 +1181,48 @@ function Dashboard({ db, session }) {
         </div>
       </div>
 
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
+            <PackagePlus size={13} /> À réapprovisionner bientôt
+          </div>
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>Basé sur la vitesse de vente des 30 derniers jours — stock suffisant pour moins de 14 jours.</p>
+          {reorderSuggestions.length === 0 ? (
+            <p className="text-sm" style={{ color: C.inkSoft }}>Aucun réapprovisionnement urgent pour l'instant.</p>
+          ) : (
+            <ul className="space-y-2">
+              {reorderSuggestions.map((p) => (
+                <li key={p.id} className="flex items-center justify-between text-sm">
+                  <span style={{ color: C.ink }}>{p.name}</span>
+                  <span style={{ ...monoFont, color: p.daysLeft <= 3 ? C.danger : "#B4813A", fontSize: 11 }}>
+                    {p.daysLeft} j restants · commander ~{p.suggestedQty}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
+            <BarChart3 size={13} /> Rentabilité par catégorie
+          </div>
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>Marge générée par catégorie de produits, toutes ventes confondues.</p>
+          {categoryProfitability.length === 0 ? (
+            <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée pour l'instant.</p>
+          ) : (
+            <ul className="space-y-2">
+              {categoryProfitability.map((c) => (
+                <li key={c.category} className="flex items-center justify-between text-sm">
+                  <span style={{ color: C.ink }}>{c.category}</span>
+                  <span style={{ ...monoFont, color: C.success, fontSize: 12 }}>+{fmt(c.margin)} DHS</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+
       <div className="grid md:grid-cols-2 gap-6">
         <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
           <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Alertes stock</div>
@@ -1189,6 +1310,22 @@ function Rapports({ db, session }) {
   const change = current && previous && previous.total > 0
     ? Math.round(((current.total - previous.total) / previous.total) * 100)
     : null;
+
+  const byCategory = useMemo(() => {
+    const map = {};
+    mySales.filter((s) => !s.returned).forEach((s) => {
+      (s.items || []).forEach((item) => {
+        const prod = db.products.find((p) => p.id === item.productId);
+        const cat = prod ? prod.category || "Sans catégorie" : "Sans catégorie";
+        const cost = prod ? prod.costPrice || 0 : 0;
+        if (!map[cat]) map[cat] = { category: cat, revenue: 0, margin: 0, qty: 0 };
+        map[cat].revenue += item.price * item.qty;
+        map[cat].margin += (item.price - cost) * item.qty;
+        map[cat].qty += item.qty;
+      });
+    });
+    return Object.values(map).sort((a, b) => b.margin - a.margin);
+  }, [mySales, db.products]);
 
   const exportExcel = () => {
     const rows = grouped.map((g) => ({
@@ -1287,6 +1424,35 @@ function Rapports({ db, session }) {
               </tr>
             ))}
             {recent.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune donnée pour l'instant.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3 mt-10">Rentabilité par catégorie</div>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+              <td className="px-4 py-3">Catégorie</td>
+              <td className="px-4 py-3">Articles vendus</td>
+              <td className="px-4 py-3">Chiffre d'affaires</td>
+              <td className="px-4 py-3">Marge</td>
+              <td className="px-4 py-3">Marge %</td>
+            </tr>
+          </thead>
+          <tbody>
+            {byCategory.map((c) => (
+              <tr key={c.category} className="border-b" style={{ borderColor: C.border }}>
+                <td className="px-4 py-3" style={{ color: C.ink }}>{c.category}</td>
+                <td className="px-4 py-3" style={monoFont}>{c.qty}</td>
+                <td className="px-4 py-3" style={monoFont}>{fmt(c.revenue)} DHS</td>
+                <td className="px-4 py-3" style={{ ...monoFont, color: c.margin >= 0 ? C.success : C.danger }}>{fmt(c.margin)} DHS</td>
+                <td className="px-4 py-3" style={monoFont}>{c.revenue ? Math.round((c.margin / c.revenue) * 100) : 0}%</td>
+              </tr>
+            ))}
+            {byCategory.length === 0 && (
               <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune donnée pour l'instant.</td></tr>
             )}
           </tbody>
@@ -2541,6 +2707,29 @@ function Achats({ db, persist, notify, log }) {
     notify(`Retour de ${qty} × ${product.name} enregistré chez ${supplier.name}`);
   };
 
+  const restockSuggestions = useMemo(() => {
+    const todayStr = today();
+    const since = new Date(todayStr);
+    since.setDate(since.getDate() - 30);
+    const sinceStr = since.toISOString().slice(0, 10);
+    const soldQtyByProduct = {};
+    db.sales.filter((s) => !s.returned && s.date >= sinceStr).forEach((s) => {
+      (s.items || []).forEach((i) => {
+        soldQtyByProduct[i.productId] = (soldQtyByProduct[i.productId] || 0) + i.qty;
+      });
+    });
+    return db.products
+      .map((p) => {
+        const currentQty = productQty(p);
+        const sold30j = soldQtyByProduct[p.id] || 0;
+        const avgPerDay = sold30j / 30;
+        const suggestedQty = Math.max(0, Math.ceil(avgPerDay * 30 - currentQty)); // couverture visée : 30 jours de vente
+        return { ...p, currentQty, sold30j, avgPerDay, suggestedQty };
+      })
+      .filter((p) => (p.currentQty <= p.minQty) && p.suggestedQty > 0)
+      .sort((a, b) => b.sold30j - a.sold30j);
+  }, [db.products, db.sales]);
+
   const handlePdfFile = async (file) => {
     if (!file) return;
     setPdfLoading(true);
@@ -2715,6 +2904,32 @@ function Achats({ db, persist, notify, log }) {
   return (
     <div>
       <SectionTitle eyebrow="Approvisionnement" title="Achats" />
+
+      {restockSuggestions.length > 0 && (
+        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: C.paperCard }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
+            <TrendingUp size={13} /> Suggestions de réapprovisionnement
+          </div>
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+            Basé sur les ventes des 30 derniers jours, pour garder environ 30 jours de couverture de stock.
+          </p>
+          <div className="space-y-2">
+            {restockSuggestions.slice(0, 8).map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-sm py-1.5 border-b" style={{ borderColor: C.border }}>
+                <div>
+                  <span style={{ color: C.ink }}>{p.name}</span>
+                  <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="ml-2">
+                    stock: {p.currentQty} · vendu {p.sold30j} en 30j
+                  </span>
+                </div>
+                <span className="text-xs px-2 py-1 rounded" style={{ ...monoFont, background: C.accentSoft, color: "#8A6D00" }}>
+                  Commander ~{p.suggestedQty}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-end gap-2 mb-3 flex-wrap">
         <input
@@ -4861,6 +5076,50 @@ function Finance({ db, persist, notify, log, session }) {
   const [backups, setBackups] = useState([]);
   const [backupsLoading, setBackupsLoading] = useState(true);
   const [company, setCompany] = useState(db.company || { name: "", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20 });
+  const [restoreLabel, setRestoreLabel] = useState("");
+  const [restorePoints, setRestorePoints] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("ek-restore-points") || "[]");
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const saveRestorePoint = () => {
+    const now = new Date();
+    const point = {
+      id: uid(),
+      label: restoreLabel,
+      date: today(),
+      time: now.toTimeString().slice(0, 5),
+      data: db,
+    };
+    const next = [...restorePoints, point].slice(-5); // garde les 5 derniers seulement
+    setRestorePoints(next);
+    try {
+      localStorage.setItem("ek-restore-points", JSON.stringify(next));
+    } catch (e) {
+      notify("Impossible d'enregistrer — trop de données pour ce navigateur");
+      return;
+    }
+    setRestoreLabel("");
+    notify("Point de restauration créé");
+  };
+
+  const restoreFromPoint = (rp) => {
+    if (!window.confirm(`Restaurer l'état de "${rp.label || "Sans nom"}" (${rp.date} ${rp.time}) ? Les modifications faites depuis seront perdues.`)) return;
+    persist(rp.data);
+    if (log) log("restore_point", "db", rp.id, { label: rp.label, date: rp.date });
+    notify("Données restaurées");
+  };
+
+  const deleteRestorePoint = (id) => {
+    const next = restorePoints.filter((rp) => rp.id !== id);
+    setRestorePoints(next);
+    try {
+      localStorage.setItem("ek-restore-points", JSON.stringify(next));
+    } catch (e) {}
+  };
 
   const saveCompany = () => {
     persist({ ...db, company });
@@ -5208,6 +5467,45 @@ function Finance({ db, persist, notify, log, session }) {
         <p className="text-xs mt-3" style={{ color: C.inkSoft }}>
           Exportez régulièrement une sauvegarde JSON pour ne jamais perdre vos données.
         </p>
+
+        <div className="mt-8 border-t pt-6" style={{ borderColor: C.border }}>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Points de restauration rapides</div>
+          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+            Sauvegarde instantanée sur cet appareil, avant une modification importante. Pratique pour annuler rapidement en cas d'erreur.
+          </p>
+          <div className="flex gap-2 mb-4">
+            <input
+              value={restoreLabel}
+              onChange={(e) => setRestoreLabel(e.target.value)}
+              placeholder="Ex: avant import Excel"
+              className={inputClass}
+              style={{ ...inputStyle, maxWidth: 280 }}
+            />
+            <button onClick={saveRestorePoint} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white shrink-0" style={{ background: C.accent }}>
+              <Save size={14} /> Créer maintenant
+            </button>
+          </div>
+          {restorePoints.length === 0 ? (
+            <p className="text-sm" style={{ color: C.inkSoft }}>Aucun point de restauration pour l'instant.</p>
+          ) : (
+            <ul className="space-y-2">
+              {[...restorePoints].reverse().map((rp) => (
+                <li key={rp.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2" style={{ borderColor: C.border }}>
+                  <div>
+                    <span style={{ color: C.ink }}>{rp.label || "Sans nom"}</span>
+                    <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="ml-2">{rp.date} {rp.time}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => restoreFromPoint(rp)} className="text-xs px-3 py-1 rounded-md border" style={{ borderColor: C.accent, color: C.accent }}>
+                      Restaurer
+                    </button>
+                    <button onClick={() => deleteRestorePoint(rp.id)}><Trash2 size={13} color={C.danger} /></button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   );
