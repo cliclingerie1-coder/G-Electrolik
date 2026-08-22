@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -342,6 +342,8 @@ const DEFAULT_DB = {
   clientPayments: [],
   inventories: [],
   marketplaceSettings: { commissionRate: 15.73, serviceFee: 180 },
+  supplierReturns: [],
+  cashRegister: [],
   suppliers: [],
   supplierPayments: [],
   openingDebts: [],
@@ -478,6 +480,7 @@ export default function App() {
 
   const nav = [
     { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+    { id: "aujourdhui", label: "Aujourd'hui", icon: Sunrise },
     { id: "rapports", label: "Rapports", icon: BarChart3 },
     { id: "devis", label: "Devis", icon: FileText },
     { id: "achats", label: "Achats", icon: PackagePlus },
@@ -485,6 +488,7 @@ export default function App() {
     { id: "livraison", label: "Colis & Livraison", icon: ClipboardList },
     { id: "stock", label: "Stock", icon: Boxes },
     { id: "inventaire", label: "Inventaire", icon: ClipboardCheck },
+    { id: "caisse", label: "Caisse", icon: Wallet },
     { id: "calculateur", label: "Calculateur marketplace", icon: Calculator },
     { id: "clients", label: "Clients", icon: Users },
     { id: "fournisseurs", label: "Fournisseurs", icon: Truck },
@@ -576,14 +580,16 @@ export default function App() {
 
       {/* Main */}
       <main className="flex-1 p-5 md:p-10 max-w-6xl">
-        {tab === "dashboard" && <Dashboard db={db} />}
-        {tab === "rapports" && <Rapports db={db} />}
+        {tab === "dashboard" && <Dashboard db={db} session={session} />}
+        {tab === "aujourdhui" && <Aujourdhui db={db} setTab={setTab} />}
+        {tab === "rapports" && <Rapports db={db} session={session} />}
         {tab === "devis" && <Devis db={db} persist={persist} notify={notify} log={log} session={session} />}
         {tab === "achats" && <Achats db={db} persist={persist} notify={notify} log={log} />}
         {tab === "ventes" && <Ventes db={db} persist={persist} notify={notify} session={session} />}
         {tab === "livraison" && <Livraison db={db} persist={persist} notify={notify} log={log} />}
         {tab === "stock" && <Stock db={db} persist={persist} notify={notify} log={log} session={session} initialQuery={deepLinkQuery} />}
         {tab === "inventaire" && <Inventaire db={db} persist={persist} notify={notify} log={log} />}
+        {tab === "caisse" && <Caisse db={db} persist={persist} notify={notify} log={log} />}
         {tab === "calculateur" && <MarketplaceCalculator db={db} persist={persist} notify={notify} />}
         {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} initialClientId={deepLinkClientId} />}
         {tab === "fournisseurs" && <Fournisseurs db={db} persist={persist} notify={notify} log={log} />}
@@ -847,8 +853,9 @@ const inputStyle = { borderColor: C.border, color: C.ink };
 const inputClass = "w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2";
 
 // ---------- Dashboard ----------
-function Dashboard({ db }) {
-  const activeSales = db.sales.filter((s) => !s.returned);
+function Dashboard({ db, session }) {
+  const isVendeur = session && session.role === "vendeur";
+  const activeSales = db.sales.filter((s) => !s.returned && (!isVendeur || s.soldBy === session.userName));
   const stockValue = db.products.reduce((s, p) => s + (p.costPrice || 0) * productQty(p), 0);
   const rupture = db.products.filter((p) => productQty(p) <= 0);
   const lowStock = db.products.filter((p) => productQty(p) > 0 && productQty(p) <= p.minQty);
@@ -1119,12 +1126,14 @@ function Dashboard({ db }) {
         </div>
 
         <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Dernières ventes</div>
+          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
+            {isVendeur ? "Mes dernières ventes" : "Dernières ventes"}
+          </div>
           {db.sales.length === 0 ? (
             <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée pour l'instant.</p>
           ) : (
             <ul className="space-y-2">
-              {[...db.sales].reverse().slice(0, 5).map((s) => (
+              {[...db.sales].filter((s) => !isVendeur || s.soldBy === session.userName).reverse().slice(0, 5).map((s) => (
                 <li key={s.id} className="flex justify-between text-sm">
                   <span style={{ color: s.returned ? C.inkSoft : C.ink, textDecoration: s.returned ? "line-through" : "none" }}>
                     {s.client || "Client comptoir"}{s.returned ? " (retourné)" : ""}
@@ -1153,12 +1162,14 @@ function monthKey(dateStr) {
   return dateStr.slice(0, 7); // YYYY-MM
 }
 
-function Rapports({ db }) {
+function Rapports({ db, session }) {
   const [view, setView] = useState("week");
+  const isVendeur = session && session.role === "vendeur";
+  const mySales = db.sales.filter((s) => !isVendeur || s.soldBy === session.userName);
 
   const grouped = useMemo(() => {
     const map = {};
-    db.sales.filter((s) => !s.returned).forEach((s) => {
+    mySales.filter((s) => !s.returned).forEach((s) => {
       const key = view === "week" ? isoWeekKey(s.date) : monthKey(s.date);
       if (!map[key]) map[key] = { period: key, total: 0, count: 0, margin: 0 };
       map[key].total += s.total;
@@ -1170,7 +1181,7 @@ function Rapports({ db }) {
       }, 0);
     });
     return Object.values(map).sort((a, b) => a.period.localeCompare(b.period));
-  }, [db.sales, db.products, view]);
+  }, [mySales, db.products, view]);
 
   const recent = grouped.slice(-(view === "week" ? 10 : 12));
   const current = recent[recent.length - 1];
@@ -1567,6 +1578,238 @@ function MarketplaceCalculator({ db, persist, notify }) {
             <p className="text-sm" style={{ color: C.inkSoft }}>Entre le profit que tu veux garder pour voir le prix à fixer.</p>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Aujourd'hui : vue unifiée des tâches du jour ----------
+function Aujourdhui({ db, setTab }) {
+  const todayStr = today();
+  const daysUntil = (d) => Math.floor((new Date(d) - new Date(todayStr)) / 86400000);
+
+  const colisEnCours = db.deliveryNotes.filter((b) => {
+    const statuses = b.items.map((i) => i.status || b.status || "attente");
+    return !statuses.every((s) => s === "livre") && !statuses.every((s) => s === "echec");
+  });
+
+  const echeances = db.cheques
+    .filter((c) => c.status === "pending")
+    .map((c) => ({ label: `Chèque ${c.number} (${c.type === "received" ? "reçu de" : "à payer à"} ${c.party})`, amount: c.amount, days: daysUntil(c.dueDate) }))
+    .filter((e) => e.days <= 7)
+    .sort((a, b) => a.days - b.days);
+
+  const clientsToRemind = (db.clients || [])
+    .filter((c) => (c.balanceDue || 0) > 0 && (c.paymentMode === "hebdo" || c.paymentMode === "10j"))
+    .sort((a, b) => (b.balanceDue || 0) - (a.balanceDue || 0));
+
+  const rupture = db.products.filter((p) => productQty(p) <= 0);
+
+  const sections = [
+    {
+      title: "Colis à suivre",
+      icon: ClipboardList,
+      count: colisEnCours.length,
+      tab: "livraison",
+      empty: "Tous les colis sont réglés — rien à suivre 👍",
+      items: colisEnCours.slice(0, 6).map((b) => ({ label: `${b.number} — ${b.client}`, sub: `${b.items.length} article(s) · ${fmt(b.montant || 0)} DHS` })),
+    },
+    {
+      title: "Échéances (7 jours)",
+      icon: Landmark,
+      count: echeances.length,
+      tab: "cheques",
+      empty: "Aucune échéance de chèque dans les 7 prochains jours.",
+      items: echeances.slice(0, 6).map((e) => ({ label: e.label, sub: `${fmt(e.amount)} DHS · ${e.days < 0 ? `en retard (${Math.abs(e.days)} j)` : e.days === 0 ? "aujourd'hui" : `dans ${e.days} j`}` })),
+    },
+    {
+      title: "Clients à relancer",
+      icon: MessageCircle,
+      count: clientsToRemind.length,
+      tab: "clients",
+      empty: "Aucun rappel de paiement pour l'instant.",
+      items: clientsToRemind.slice(0, 6).map((c) => ({ label: c.name, sub: `${fmt(c.balanceDue)} DHS · ${PAYMENT_MODE_LABELS[c.paymentMode]}` })),
+    },
+    {
+      title: "Ruptures de stock",
+      icon: AlertTriangle,
+      count: rupture.length,
+      tab: "stock",
+      empty: "Aucune rupture de stock.",
+      items: rupture.slice(0, 6).map((p) => ({ label: p.name, sub: "Stock épuisé" })),
+    },
+  ];
+
+  const totalTasks = sections.reduce((s, x) => s + x.count, 0);
+
+  return (
+    <div>
+      <SectionTitle eyebrow={today()} title="Aujourd'hui" />
+      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
+        {totalTasks === 0 ? "Rien d'urgent aujourd'hui — tout est sous contrôle 🎉" : `${totalTasks} élément(s) à ton attention.`}
+      </p>
+      <div className="grid md:grid-cols-2 gap-6">
+        {sections.map((sec) => (
+          <div key={sec.title} className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+            <button onClick={() => setTab(sec.tab)} className="flex items-center justify-between w-full mb-4 text-left">
+              <div className="flex items-center gap-2" style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>
+                <sec.icon size={13} /> <span className="uppercase tracking-widest">{sec.title}</span>
+              </div>
+              {sec.count > 0 && (
+                <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: "#8A6D00", ...monoFont }}>{sec.count}</span>
+              )}
+            </button>
+            {sec.items.length === 0 ? (
+              <p className="text-sm" style={{ color: C.inkSoft }}>{sec.empty}</p>
+            ) : (
+              <ul className="space-y-2">
+                {sec.items.map((it, idx) => (
+                  <li key={idx} className="flex justify-between text-sm">
+                    <span style={{ color: C.ink }}>{it.label}</span>
+                    <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{it.sub}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Caisse quotidienne ----------
+function Caisse({ db, persist, notify, log }) {
+  const todayStr = today();
+  const todayRecord = (db.cashRegister || []).find((r) => r.date === todayStr);
+  const [opening, setOpening] = useState("");
+  const [closing, setClosing] = useState("");
+
+  const cashSalesToday = db.sales
+    .filter((s) => !s.returned && s.payment === "cash" && s.date === todayStr)
+    .reduce((s, x) => s + x.total, 0);
+
+  const theoretical = todayRecord ? (todayRecord.opening || 0) + cashSalesToday : null;
+
+  const openRegister = () => {
+    const amount = Number(opening);
+    if (isNaN(amount) || amount < 0) return notify("Montant invalide");
+    const record = { id: uid(), date: todayStr, opening: amount, closing: null, theoretical: null, ecart: null };
+    persist({ ...db, cashRegister: [...(db.cashRegister || []), record] });
+    if (log) log("ouverture_caisse", "cashRegister", record.id, { montant: amount });
+    notify(`Caisse ouverte avec ${fmt(amount)} DHS`);
+  };
+
+  const closeRegister = () => {
+    const amount = Number(closing);
+    if (isNaN(amount) || amount < 0) return notify("Montant invalide");
+    const theo = (todayRecord.opening || 0) + cashSalesToday;
+    const ecart = amount - theo;
+    const cashRegister = db.cashRegister.map((r) => (r.id === todayRecord.id ? { ...r, closing: amount, theoretical: theo, ecart } : r));
+    persist({ ...db, cashRegister });
+    if (log) log("cloture_caisse", "cashRegister", todayRecord.id, { compte: amount, theorique: theo, ecart });
+    setClosing("");
+    notify(ecart === 0 ? "Caisse clôturée — aucun écart 👍" : `Caisse clôturée — écart de ${fmt(ecart)} DHS`);
+  };
+
+  const history = [...(db.cashRegister || [])].filter((r) => r.date !== todayStr).reverse();
+
+  return (
+    <div>
+      <SectionTitle eyebrow="Trésorerie" title="Caisse quotidienne" />
+
+      <div className="rounded-xl border p-6 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
+        {!todayRecord ? (
+          <>
+            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Ouverture de caisse — {todayStr}</div>
+            <p className="text-sm mb-4" style={{ color: C.inkSoft }}>Compte l'argent liquide présent dans la caisse ce matin, avant toute vente.</p>
+            <div className="flex items-end gap-3">
+              <Field label="Fond de caisse (DHS)">
+                <input type="number" className={inputClass} style={inputStyle} value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="Ex: 500" />
+              </Field>
+              <button onClick={openRegister} className="px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
+                Ouvrir la caisse
+              </button>
+            </div>
+          </>
+        ) : todayRecord.closing === null ? (
+          <>
+            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Caisse ouverte — {todayStr}</div>
+            <div className="grid sm:grid-cols-3 gap-4 mb-5">
+              <div>
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Fond de départ</div>
+                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.opening)} DHS</div>
+              </div>
+              <div>
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Ventes comptant aujourd'hui</div>
+                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(cashSalesToday)} DHS</div>
+              </div>
+              <div>
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Théorique actuel</div>
+                <div style={{ ...displayFont, color: C.accent }} className="text-xl italic">{fmt(theoretical)} DHS</div>
+              </div>
+            </div>
+            <div className="flex items-end gap-3 border-t pt-5" style={{ borderColor: C.border }}>
+              <Field label="Comptage réel en fin de journée (DHS)">
+                <input type="number" className={inputClass} style={inputStyle} value={closing} onChange={(e) => setClosing(e.target.value)} placeholder="Ex: 1250" />
+              </Field>
+              <button onClick={closeRegister} className="px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.danger }}>
+                Clôturer la caisse
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Caisse clôturée — {todayStr}</div>
+            <div className="grid sm:grid-cols-4 gap-4">
+              <div>
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Fond de départ</div>
+                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.opening)} DHS</div>
+              </div>
+              <div>
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Théorique</div>
+                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.theoretical)} DHS</div>
+              </div>
+              <div>
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Compté réel</div>
+                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.closing)} DHS</div>
+              </div>
+              <div>
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Écart</div>
+                <div style={{ ...monoFont, color: todayRecord.ecart === 0 ? C.success : C.danger }} className="text-lg">
+                  {todayRecord.ecart > 0 ? "+" : ""}{fmt(todayRecord.ecart)} DHS
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique</div>
+      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Fond de départ</td><td className="px-4 py-3">Théorique</td><td className="px-4 py-3">Compté</td><td className="px-4 py-3">Écart</td>
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((r) => (
+              <tr key={r.id} className="border-b" style={{ borderColor: C.border }}>
+                <td className="px-4 py-3" style={monoFont}>{r.date}</td>
+                <td className="px-4 py-3" style={monoFont}>{fmt(r.opening)} DHS</td>
+                <td className="px-4 py-3" style={monoFont}>{r.theoretical !== null ? fmt(r.theoretical) + " DHS" : "—"}</td>
+                <td className="px-4 py-3" style={monoFont}>{r.closing !== null ? fmt(r.closing) + " DHS" : "—"}</td>
+                <td className="px-4 py-3" style={{ ...monoFont, color: r.ecart === 0 ? C.success : r.ecart > 0 ? C.success : C.danger }}>
+                  {r.ecart === null ? "—" : (r.ecart > 0 ? "+" : "") + fmt(r.ecart) + " DHS"}
+                </td>
+              </tr>
+            ))}
+            {history.length === 0 && (
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun historique pour l'instant.</td></tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -2276,6 +2519,27 @@ function Achats({ db, persist, notify, log }) {
   const pdfInputRef = useRef(null);
   const [pdfReview, setPdfReview] = useState(null);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [returnForm, setReturnForm] = useState({ supplierId: "", productId: "", qty: "1", reason: "" });
+
+  const submitSupplierReturn = () => {
+    const supplier = db.suppliers.find((s) => s.id === returnForm.supplierId);
+    const product = db.products.find((p) => p.id === returnForm.productId);
+    const qty = Number(returnForm.qty);
+    if (!supplier || !product || !qty || qty <= 0) return notify("Fournisseur, produit et quantité requis");
+    const currentQty = productQty(product);
+    if (qty > currentQty) return notify(`Quantité invalide — seulement ${currentQty} en stock`);
+
+    const unitCost = product.costPrice || 0;
+    const montant = qty * unitCost;
+    const products = adjustStock(db.products, product.id, null, -qty);
+    const suppliers = db.suppliers.map((s) => (s.id === supplier.id ? { ...s, balanceDue: Math.max(0, (s.balanceDue || 0) - montant) } : s));
+    const record = { id: uid(), date: today(), supplierId: supplier.id, supplierName: supplier.name, productName: product.name, qty, unitCost, montant, reason: returnForm.reason };
+
+    persist({ ...db, products, suppliers, supplierReturns: [...(db.supplierReturns || []), record] });
+    if (log) log("retour_fournisseur", "suppliers", supplier.id, { name: supplier.name, produit: product.name, qty, montant });
+    setReturnForm({ supplierId: "", productId: "", qty: "1", reason: "" });
+    notify(`Retour de ${qty} × ${product.name} enregistré chez ${supplier.name}`);
+  };
 
   const handlePdfFile = async (file) => {
     if (!file) return;
@@ -2640,6 +2904,60 @@ function Achats({ db, persist, notify, log }) {
           </tbody>
         </table>
       </div>
+
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3 mt-10">Retour fournisseur (produit défectueux)</div>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
+        <div className="grid md:grid-cols-4 gap-3">
+          <Field label="Fournisseur">
+            <select className={inputClass} style={inputStyle} value={returnForm.supplierId} onChange={(e) => setReturnForm({ ...returnForm, supplierId: e.target.value })}>
+              <option value="">— Choisir —</option>
+              {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Produit">
+            <select className={inputClass} style={inputStyle} value={returnForm.productId} onChange={(e) => setReturnForm({ ...returnForm, productId: e.target.value })}>
+              <option value="">— Choisir —</option>
+              {db.products.map((p) => <option key={p.id} value={p.id}>{p.name} (stock: {productQty(p)})</option>)}
+            </select>
+          </Field>
+          <Field label="Quantité">
+            <input type="number" className={inputClass} style={inputStyle} value={returnForm.qty} onChange={(e) => setReturnForm({ ...returnForm, qty: e.target.value })} />
+          </Field>
+          <Field label="Raison (optionnel)">
+            <input className={inputClass} style={inputStyle} value={returnForm.reason} onChange={(e) => setReturnForm({ ...returnForm, reason: e.target.value })} placeholder="Ex: produit cassé" />
+          </Field>
+        </div>
+        <p className="text-xs mt-2" style={{ color: C.inkSoft }}>
+          Le stock sera diminué de cette quantité, et le solde dû au fournisseur sera réduit automatiquement du montant correspondant.
+        </p>
+        <button onClick={submitSupplierReturn} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.danger }}>
+          <RotateCcw size={14} /> Enregistrer le retour
+        </button>
+      </div>
+
+      {(db.supplierReturns || []).length > 0 && (
+        <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+                <td className="px-4 py-3">Date</td><td className="px-4 py-3">Produit</td><td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Qté</td><td className="px-4 py-3">Montant</td><td className="px-4 py-3">Raison</td>
+              </tr>
+            </thead>
+            <tbody>
+              {[...db.supplierReturns].reverse().map((r) => (
+                <tr key={r.id} className="border-b" style={{ borderColor: C.border }}>
+                  <td className="px-4 py-3" style={monoFont}>{r.date}</td>
+                  <td className="px-4 py-3">{r.productName}</td>
+                  <td className="px-4 py-3" style={{ color: C.inkSoft }}>{r.supplierName}</td>
+                  <td className="px-4 py-3" style={monoFont}>{r.qty}</td>
+                  <td className="px-4 py-3" style={{ ...monoFont, color: C.danger }}>−{fmt(r.montant)} DHS</td>
+                  <td className="px-4 py-3" style={{ color: C.inkSoft }}>{r.reason || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -3594,6 +3912,9 @@ function Fournisseurs({ db, persist, notify, log }) {
     });
     (db.supplierPayments || []).filter((pay) => pay.supplierId === supplier.id).forEach((pay) => {
       rows.push({ date: pay.date, type: "Paiement", detail: "Réglé au fournisseur", montant: pay.amount, sens: "-" });
+    });
+    (db.supplierReturns || []).filter((r) => r.supplierId === supplier.id).forEach((r) => {
+      rows.push({ date: r.date, type: "Retour fournisseur", detail: `${r.productName} × ${r.qty}${r.reason ? " — " + r.reason : ""}`, montant: r.montant, sens: "-" });
     });
     rows.sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
     let solde = 0;
