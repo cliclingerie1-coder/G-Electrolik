@@ -4052,6 +4052,7 @@ function Livraison({ db, persist, notify, log }) {
   const [items, setItems] = useState([]);
   const [payAmounts, setPayAmounts] = useState({});
   const [productQ, setProductQ] = useState("");
+  const [showCamera, setShowCamera] = useState(false);
 
   const addToCart = (p) => {
     setItems((c) => {
@@ -4065,6 +4066,14 @@ function Livraison({ db, persist, notify, log }) {
   const changePrice = (id, val) =>
     setItems((c) => c.map((i) => (i.productId === id ? { ...i, unitPrice: Number(val) || 0 } : i)));
   const removeItem = (id) => setItems((c) => c.filter((i) => i.productId !== id));
+
+  const handleCameraDetected = (code) => {
+    setShowCamera(false);
+    const cleanCode = String(code || "").trim();
+    const found = findByCode(db.products, cleanCode);
+    if (!found) return notify(`Aucun produit avec ce code (${cleanCode})`);
+    addToCart(found.product);
+  };
 
   const cartMontant = items.reduce((s, i) => s + i.qty * (i.unitPrice || 0), 0);
 
@@ -4146,15 +4155,25 @@ function Livraison({ db, persist, notify, log }) {
       <SectionTitle eyebrow="Logistique" title="Colis & Bons de livraison" />
       <div className="grid lg:grid-cols-3 gap-6 mb-10">
         <div className="lg:col-span-2">
-          <div className="flex items-center gap-2 border rounded-md px-3 py-2 mb-3 max-w-sm" style={{ borderColor: C.border, background: C.paperCard }}>
-            <Search size={14} color={C.inkSoft} />
-            <input
-              placeholder="Rechercher par nom ou code-barres…"
-              className="w-full outline-none text-sm bg-transparent"
-              style={{ color: C.ink }}
-              value={productQ}
-              onChange={(e) => setProductQ(e.target.value)}
-            />
+          <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: C.paperCard }}>
+              <Search size={14} color={C.inkSoft} />
+              <input
+                placeholder="Rechercher par nom ou code-barres…"
+                className="w-full outline-none text-sm bg-transparent"
+                style={{ color: C.ink }}
+                value={productQ}
+                onChange={(e) => setProductQ(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => setShowCamera(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
+              style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
+              title="Scanner un code-barres"
+            >
+              <Camera size={14} />
+            </button>
           </div>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             {db.products
@@ -4329,6 +4348,8 @@ function Livraison({ db, persist, notify, log }) {
           </tbody>
         </table>
       </div>
+
+      {showCamera && <CameraScanner onDetected={handleCameraDetected} onClose={() => setShowCamera(false)} />}
     </div>
   );
 }
