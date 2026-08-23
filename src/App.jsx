@@ -340,9 +340,9 @@ async function sbSyncPublicProducts(session, products) {
       in_stock: productQty(p) > 0,
       updated_at: new Date().toISOString(),
     }));
-  if (rows.length === 0) return;
+  if (rows.length === 0) return { ok: true };
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/public_products?on_conflict=id`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/public_products?on_conflict=id`, {
       method: "POST",
       headers: {
         apikey: SUPABASE_KEY,
@@ -352,8 +352,15 @@ async function sbSyncPublicProducts(session, products) {
       },
       body: JSON.stringify(rows),
     });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.error("Sync boutique en ligne error", res.status, errText);
+      return { ok: false, error: errText || `Erreur ${res.status}` };
+    }
+    return { ok: true };
   } catch (e) {
     console.error("Sync boutique en ligne error", e);
+    return { ok: false, error: e.message };
   }
 }
 
@@ -2422,10 +2429,20 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     setTimeout(() => w.print(), 300);
   };
 
-  const togglePublished = (id) => {
+  const togglePublished = async (id) => {
     const p = db.products.find((x) => x.id === id);
-    persist({ ...db, products: db.products.map((x) => (x.id === id ? { ...x, publishedOnline: !x.publishedOnline } : x)) });
-    notify(p && p.publishedOnline ? `${p.name} retiré du site` : `${p ? p.name : "Produit"} publié sur le site`);
+    const nextPublished = !(p && p.publishedOnline);
+    const nextProducts = db.products.map((x) => (x.id === id ? { ...x, publishedOnline: nextPublished } : x));
+    persist({ ...db, products: nextProducts });
+
+    if (nextPublished && session) {
+      const result = await sbSyncPublicProducts(session, nextProducts);
+      if (!result.ok) {
+        notify(`Échec de la publication sur le site : ${result.error || "erreur inconnue"}`);
+        return;
+      }
+    }
+    notify(nextPublished ? `${p ? p.name : "Produit"} publié sur le site ✅` : `${p ? p.name : "Produit"} retiré du site`);
   };
 
   const removeProduct = (id) => {
@@ -2447,10 +2464,14 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     .filter((p) => {
       if (stockFilter === "out") return productQty(p) <= 0;
       if (stockFilter === "low") return productQty(p) > 0 && productQty(p) <= p.minQty;
+      if (stockFilter === "online") return !!p.publishedOnline;
+      if (stockFilter === "offline") return !p.publishedOnline;
       return true;
     });
   const rupture = db.products.filter((p) => productQty(p) <= 0);
   const lowStock = db.products.filter((p) => productQty(p) > 0 && productQty(p) <= p.minQty);
+  const onlineCount = db.products.filter((p) => p.publishedOnline).length;
+  const offlineCount = db.products.length - onlineCount;
 
   return (
     <div>
@@ -2551,11 +2572,13 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
             <Search size={14} color={C.inkSoft} />
             <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          <div className="flex items-center gap-1 border rounded-md p-1" style={{ borderColor: C.border, background: C.paperCard }}>
+          <div className="flex items-center gap-1 border rounded-md p-1 flex-wrap" style={{ borderColor: C.border, background: C.paperCard }}>
             {[
               { id: "all", label: "Tous" },
               { id: "low", label: `Stock bas (${lowStock.length})` },
               { id: "out", label: `Rupture (${rupture.length})` },
+              { id: "online", label: `En ligne (${onlineCount})` },
+              { id: "offline", label: `Pas en ligne (${offlineCount})` },
             ].map((f) => (
               <button
                 key={f.id}
@@ -2563,7 +2586,16 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                 className="text-xs px-3 py-1.5 rounded"
                 style={{
                   background: stockFilter === f.id ? C.accent : "transparent",
-                  color: stockFilter === f.id ? "#fff" : f.id === "out" ? C.danger : f.id === "low" ? "#B08900" : C.inkSoft,
+                  color:
+                    stockFilter === f.id
+                      ? "#fff"
+                      : f.id === "out"
+                      ? C.danger
+                      : f.id === "low"
+                      ? "#B08900"
+                      : f.id === "online"
+                      ? C.success
+                      : C.inkSoft,
                 }}
               >
                 {f.label}
