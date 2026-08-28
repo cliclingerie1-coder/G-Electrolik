@@ -485,6 +485,43 @@ export default function App() {
     }
   }, [notifEnabled, session, db.clients, db.cheques]);
 
+  // Vérifie toutes les 25s si une nouvelle commande en ligne est arrivée (PC ou téléphone, tant que l'app est ouverte)
+  const [newOrdersBadge, setNewOrdersBadge] = useState(0);
+
+  useEffect(() => {
+    if (!session) return;
+    const checkNewOrders = async () => {
+      const orders = await sbFetchOnlineOrders(session);
+      let seen = [];
+      try {
+        seen = JSON.parse(localStorage.getItem("ek-seen-orders") || "[]");
+      } catch (e) {
+        seen = [];
+      }
+      const newOnes = orders.filter((o) => !seen.includes(o.id));
+      if (newOnes.length > 0 && seen.length > 0) {
+        // seen.length > 0 évite de tout signaler en masse dès la toute première vérification
+        setNewOrdersBadge((n) => n + newOnes.length);
+        if (notifEnabled && "Notification" in window && Notification.permission === "granted") {
+          newOnes.forEach((o) => {
+            new Notification("Nouvelle commande en ligne 🛒", {
+              body: `${o.client_name} · ${fmt(o.total)} DHS · ${o.client_city}`,
+            });
+          });
+        }
+      }
+      localStorage.setItem("ek-seen-orders", JSON.stringify(orders.map((o) => o.id)));
+    };
+    checkNewOrders();
+    const t = setInterval(checkNewOrders, 25000);
+    return () => clearInterval(t);
+  }, [session, notifEnabled]);
+
+  // Réinitialise le badge quand on ouvre l'onglet Commandes en ligne
+  useEffect(() => {
+    if (tab === "commandes") setNewOrdersBadge(0);
+  }, [tab]);
+
   useEffect(() => {
     const onKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -661,7 +698,15 @@ export default function App() {
               >
                 <span style={{ ...monoFont, fontSize: 10, opacity: 0.6 }}>0{i + 1}</span>
                 <Icon size={16} />
-                <span className="text-sm">{n.label}</span>
+                <span className="text-sm flex-1 text-left">{n.label}</span>
+                {n.id === "commandes" && newOrdersBadge > 0 && (
+                  <span
+                    className="text-[10px] w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    style={{ background: C.danger, color: "#fff", ...monoFont }}
+                  >
+                    {newOrdersBadge}
+                  </span>
+                )}
               </button>
             );
           })}
