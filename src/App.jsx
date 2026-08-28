@@ -2958,6 +2958,8 @@ function parsePdfInvoiceLines(rows) {
 
 function Achats({ db, persist, notify, log }) {
   const [form, setForm] = useState({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
+  const [productSearch, setProductSearch] = useState("");
+  const [showProductList, setShowProductList] = useState(false);
   const useExisting = form.productId !== "";
   const selectedProduct = useExisting ? db.products.find((p) => p.id === form.productId) : null;
   const needsVariant = selectedProduct && selectedProduct.variants && selectedProduct.variants.length > 0;
@@ -3318,10 +3320,55 @@ function Achats({ db, persist, notify, log }) {
         <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
         <div className="grid md:grid-cols-6 gap-3">
           <Field label="Produit existant">
-            <select className={inputClass} style={inputStyle} value={form.productId} onChange={(e) => setForm({ ...form, productId: e.target.value, variantId: "" })}>
-              <option value="">— Nouveau produit —</option>
-              {db.products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
+            <div className="relative">
+              <div className="flex items-center gap-2 border rounded-md px-3 py-2" style={inputStyle}>
+                <Search size={13} color={C.inkSoft} />
+                <input
+                  value={useExisting ? selectedProduct?.name || "" : productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setForm({ ...form, productId: "", variantId: "", newName: e.target.value });
+                    setShowProductList(true);
+                  }}
+                  onFocus={() => setShowProductList(true)}
+                  placeholder="Rechercher par nom, SKU, code-barres…"
+                  className="w-full outline-none text-sm bg-transparent"
+                  style={{ color: C.ink }}
+                />
+                {useExisting && (
+                  <button onClick={() => { setForm({ ...form, productId: "", variantId: "" }); setProductSearch(""); }}>
+                    <X size={13} color={C.inkSoft} />
+                  </button>
+                )}
+              </div>
+              {showProductList && !useExisting && productSearch.trim() !== "" && (
+                <div
+                  className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-md border"
+                  style={{ borderColor: C.border, background: C.paperCard, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}
+                >
+                  {db.products
+                    .filter((p) => (p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(productSearch.toLowerCase()))
+                    .slice(0, 30)
+                    .map((p) => (
+                      <button
+                        key={p.id}
+                        onClick={() => {
+                          setForm({ ...form, productId: p.id, variantId: "" });
+                          setProductSearch("");
+                          setShowProductList(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-black/5"
+                      >
+                        <span style={{ color: C.ink }}>{p.name}</span>
+                        <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · stock: {productQty(p)}</span>
+                      </button>
+                    ))}
+                  {db.products.filter((p) => (p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
+                    <div className="px-3 py-3 text-sm" style={{ color: C.inkSoft }}>Aucun produit trouvé — il sera créé comme nouveau produit.</div>
+                  )}
+                </div>
+              )}
+            </div>
           </Field>
           {needsVariant && (
             <Field label="Variante à réapprovisionner">
