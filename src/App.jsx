@@ -2102,6 +2102,7 @@ function Caisse({ db, persist, notify, log }) {
 function CommandesEnLigne({ db, persist, notify, log, session }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState({});
 
   const load = async () => {
     setLoading(true);
@@ -2128,6 +2129,39 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
     }
   };
 
+  const toggleSelect = (id) => setSelected((s) => ({ ...s, [id]: !s[id] }));
+  const selectAll = () => {
+    const allSelected = orders.every((o) => selected[o.id]);
+    const next = {};
+    orders.forEach((o) => (next[o.id] = !allSelected));
+    setSelected(next);
+  };
+  const selectedCount = Object.values(selected).filter(Boolean).length;
+
+  const exportForDelivery = () => {
+    const toExport = orders.filter((o) => selected[o.id]);
+    if (toExport.length === 0) return notify("Sélectionnez au moins une commande à exporter");
+    const rows = toExport.map((o) => ({
+      "CODE SUIVI": "",
+      DESTINATAIRE: o.client_name,
+      TELEPHONE: o.client_phone,
+      ADRESSE: o.client_address,
+      PRIX: o.total,
+      VILLE: o.client_city,
+      COMMENTAIRE: "Paiement à la livraison",
+      QUARTIER: "",
+      PRODUIT: (o.items || []).map((i) => `${i.name} x${i.qty}`).join(", "),
+      "VALEUR DECLAREE": o.total,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows, {
+      header: ["CODE SUIVI", "DESTINATAIRE", "TELEPHONE", "ADRESSE", "PRIX", "VILLE", "COMMENTAIRE", "QUARTIER", "PRODUIT", "VALEUR DECLAREE"],
+    });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Colis");
+    XLSX.writeFile(wb, `commandes-livraison-${today()}.xlsx`);
+    notify(`${toExport.length} commande(s) exportée(s) au format société de livraison`);
+  };
+
   const statusLabels = { nouvelle: "Nouvelle", confirmee: "Confirmée", expediee: "Expédiée", annulee: "Annulée" };
   const statusColors = { nouvelle: C.accent, confirmee: C.success, expediee: C.inkSoft, annulee: C.danger };
 
@@ -2137,14 +2171,24 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
         eyebrow="Boutique en ligne"
         title="Commandes en ligne"
         action={
-          <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
-            <RotateCcw size={13} /> Actualiser
-          </button>
+          <div className="flex gap-2">
+            <button onClick={exportForDelivery} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
+              <Download size={13} /> Exporter (modèle livraison){selectedCount > 0 ? ` — ${selectedCount}` : ""}
+            </button>
+            <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
+              <RotateCcw size={13} /> Actualiser
+            </button>
+          </div>
         }
       />
-      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
-        Commandes passées sur le site web. Comme la société de livraison n'a pas d'API, copie les infos client ci-dessous pour créer l'envoi manuellement sur leur plateforme.
+      <p className="text-sm mb-4" style={{ color: C.inkSoft }}>
+        Commandes passées sur le site web. Coche celles à envoyer, puis exporte un fichier Excel prêt à importer sur la plateforme de la société de livraison.
       </p>
+      {orders.length > 0 && (
+        <button onClick={selectAll} className="text-xs mb-4 px-3 py-1.5 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
+          {orders.every((o) => selected[o.id]) ? "Tout désélectionner" : "Tout sélectionner"}
+        </button>
+      )}
 
       {loading ? (
         <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
@@ -2153,7 +2197,9 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
       ) : (
         <div className="space-y-4">
           {orders.map((o) => (
-            <div key={o.id} className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
+            <div key={o.id} className="rounded-xl border p-5 flex gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
+              <input type="checkbox" checked={!!selected[o.id]} onChange={() => toggleSelect(o.id)} className="mt-1.5 shrink-0" />
+              <div className="flex-1">
               <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
                 <div>
                   <div style={{ ...displayFont, color: C.ink }} className="text-lg italic">{o.client_name}</div>
@@ -2215,6 +2261,7 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
                     Annuler
                   </button>
                 )}
+              </div>
               </div>
             </div>
           ))}
