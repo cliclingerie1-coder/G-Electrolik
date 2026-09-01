@@ -315,12 +315,12 @@ async function sbRestoreBackup(session, date) {
 async function sbLoadLatestBackup(session) {
   try {
     const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/backups?select=data,backup_date&order=backup_date.desc&limit=1`,
+      `${SUPABASE_URL}/rest/v1/backups?select=data,backup_date,updated_at&order=updated_at.desc&limit=1`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.accessToken}` } }
     );
     if (!res.ok) return null;
     const rows = await res.json();
-    return rows && rows[0] ? rows[0].data : null;
+    return rows && rows[0] ? { data: rows[0].data, updatedAt: rows[0].updated_at } : null;
   } catch (e) {
     console.error("Load latest backup error", e);
     return null;
@@ -562,8 +562,13 @@ export default function App() {
     })();
   }, []);
 
+  // Garde la trace de la donnée la plus fraîche connue (locale ou distante), pour éviter
+  // qu'une vérification cloud en retard n'écrase par erreur une modification toute récente
+  const lastKnownTimestampRef = useRef(null);
+
   const persist = async (next) => {
     setDb(next);
+    lastKnownTimestampRef.current = new Date().toISOString(); // notre propre changement est forcément le plus récent
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch (e) {
@@ -579,18 +584,19 @@ export default function App() {
   useEffect(() => {
     if (!session) return;
     const t = setInterval(async () => {
-      const cloudDb = await sbLoadLatestBackup(session);
-      if (cloudDb && JSON.stringify(cloudDb) !== JSON.stringify(db)) {
-        setDb(cloudDb);
+      const result = await sbLoadLatestBackup(session);
+      if (result && (!lastKnownTimestampRef.current || result.updatedAt > lastKnownTimestampRef.current)) {
+        setDb(result.data);
+        lastKnownTimestampRef.current = result.updatedAt;
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudDb));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(result.data));
         } catch (e) {
           console.error("Storage error", e);
         }
       }
     }, 20000);
     return () => clearInterval(t);
-  }, [session, db]);
+  }, [session]);
 
   const notify = (msg, undo) => {
     setToast({ msg, undo });
@@ -610,16 +616,17 @@ export default function App() {
     };
     setSession(s);
     // Synchronise avec la dernière sauvegarde cloud (récupère les données créées sur un autre appareil)
-    const cloudDb = await sbLoadLatestBackup(s);
-    if (cloudDb) {
-      setDb(cloudDb);
+    const cloudBackup = await sbLoadLatestBackup(s);
+    if (cloudBackup) {
+      setDb(cloudBackup.data);
+      lastKnownTimestampRef.current = cloudBackup.updatedAt;
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudDb));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudBackup.data));
       } catch (e) {
         console.error("Storage error", e);
       }
     }
-    sbSaveBackup(s, cloudDb || db); // assure une sauvegarde du jour dès la connexion
+    sbSaveBackup(s, cloudBackup ? cloudBackup.data : db); // assure une sauvegarde du jour dès la connexion
   };
 
   const nav = [
@@ -787,12 +794,19 @@ export default function App() {
 // ---------- Login ----------
 // ---------- Camera barcode scanner (mobile/webcam) ----------
 function CameraScanner({ onDetected, onClose }) {
-  const regionId = "camera-scan-region";
+  // Un identifiant unique par instance évite tout conflit avec une session caméra précédente mal fermée
+  const regionIdRef = useRef("camera-scan-" + Math.random().toString(36).slice(2));
   const scannerRef = useRef(null);
   const [error, setError] = useState("");
   const [lastRead, setLastRead] = useState("");
+  const [ready, setReady] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
+    let stopped = false;
+    let cancelled = false;
+    const regionId = regionIdRef.current;
+
     const scanner = new Html5Qrcode(regionId, {
       formatsToSupport: [
         Html5QrcodeSupportedFormats.EAN_13,
@@ -808,27 +822,60 @@ function CameraScanner({ onDetected, onClose }) {
       verbose: false,
     });
     scannerRef.current = scanner;
-    let stopped = false;
+
+    const safeStop = async () => {
+      try {
+        if (scanner.getState && scanner.getState() === 2 /* SCANNING */) {
+          await scanner.stop();
+        }
+        scanner.clear();
+      } catch (e) {
+        // déjà arrêté / pas grave
+      }
+    };
 
     scanner
       .start(
         { facingMode: "environment" },
-        { fps: 12, qrbox: { width: 300, height: 180 }, aspectRatio: 1.6, disableFlip: false },
+        {
+          fps: 10,
+          // Boîte de scan calculée depuis la taille réelle de la caméra — une taille fixe en pixels
+          // peut dépasser la résolution de la caméra sur certains téléphones et provoquer un écran blanc figé.
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.floor(minEdge * 0.7);
+            return { width: size, height: Math.floor(size * 0.55) };
+          },
+          disableFlip: false,
+        },
         (decodedText, decodedResult) => {
           setLastRead(`${decodedText}${decodedResult && decodedResult.result && decodedResult.result.format ? " (" + decodedResult.result.format.formatName + ")" : ""}`);
           if (stopped) return;
           stopped = true;
-          scanner.stop().catch(() => {}).finally(() => onDetected(decodedText));
+          safeStop().finally(() => onDetected(decodedText));
         },
         () => {} // ignore per-frame "not found" noise
       )
-      .catch(() => setError("Impossible d'accéder à la caméra. Vérifiez les autorisations du navigateur."));
+      .then(() => {
+        if (!cancelled) setReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setError("Impossible d'accéder à la caméra. Vérifiez les autorisations du navigateur, ou réessayez.");
+      });
 
     return () => {
+      cancelled = true;
       stopped = true;
-      scanner.stop().catch(() => {});
+      safeStop();
     };
-  }, []);
+  }, [retryKey]);
+
+  const retry = () => {
+    setError("");
+    setReady(false);
+    regionIdRef.current = "camera-scan-" + Math.random().toString(36).slice(2);
+    setRetryKey((k) => k + 1);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,24,43,0.85)" }}>
@@ -838,9 +885,24 @@ function CameraScanner({ onDetected, onClose }) {
           <button onClick={onClose}><X size={16} color={C.inkSoft} /></button>
         </div>
         {error ? (
-          <p className="text-sm" style={{ color: C.danger }}>{error}</p>
+          <div>
+            <p className="text-sm mb-3" style={{ color: C.danger }}>{error}</p>
+            <button onClick={retry} className="w-full py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
+              Réessayer
+            </button>
+          </div>
         ) : (
-          <div id={regionId} style={{ width: "100%", borderRadius: 8, overflow: "hidden" }} />
+          <>
+            {!ready && (
+              <p className="text-sm text-center py-8" style={{ color: C.inkSoft }}>Ouverture de la caméra…</p>
+            )}
+            <div id={regionIdRef.current} style={{ width: "100%", borderRadius: 8, overflow: "hidden", display: ready ? "block" : "none" }} />
+            {ready && (
+              <button onClick={retry} className="w-full mt-2 py-1.5 rounded-md text-xs border" style={{ borderColor: C.border, color: C.inkSoft }}>
+                La caméra est bloquée ? Réessayer
+              </button>
+            )}
+          </>
         )}
         <p className="text-xs mt-3 text-center" style={{ color: C.inkSoft }}>Pointez la caméra vers le code-barres du produit, à environ 10-15 cm, bien éclairé.</p>
         {lastRead && (
@@ -2277,7 +2339,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
   const [stockFilter, setStockFilter] = useState("all"); // all | low | out
   const [editingId, setEditingId] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
-  const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "" });
+  const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "", price: "", costPrice: "" });
   const [uploading, setUploading] = useState(false);
   const [showQuickScan, setShowQuickScan] = useState(false);
   const [quickScanResult, setQuickScanResult] = useState(null); // { found: bool, product, variant, code }
@@ -2442,6 +2504,8 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
       sku: product.sku + "-" + uid().toUpperCase().slice(0, 4),
       barcode: uidBarcode(),
       qty: Number(variantForm.qty) || 0,
+      price: variantForm.price !== "" ? Number(variantForm.price) : null, // null = utilise le prix du produit parent
+      costPrice: variantForm.costPrice !== "" ? Number(variantForm.costPrice) : null,
     };
     const variants = [...(product.variants || []), v];
     const products = db.products.map((p) =>
@@ -2449,9 +2513,21 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     );
     persist({ ...db, products });
     if (log) log("add_variant", "products", product.id, { product: product.name, variant: variantLabel(v) });
-    setVariantForm({ color: "", size: "", length: "", qty: "" });
+    setVariantForm({ color: "", size: "", length: "", qty: "", price: "", costPrice: "" });
     notify("Variante ajoutée");
   };
+
+  const updateVariantPrice = (product, variantId, field, value) => {
+    const variants = (product.variants || []).map((v) =>
+      v.id === variantId ? { ...v, [field]: value === "" ? null : Number(value) } : v
+    );
+    const products = db.products.map((p) => (p.id === product.id ? { ...p, variants } : p));
+    persist({ ...db, products });
+  };
+
+  // Prix/coût effectifs d'une variante : les siens si définis, sinon ceux du produit parent
+  const variantPrice = (product, variant) => (variant && variant.price != null ? variant.price : product.price);
+  const variantCost = (product, variant) => (variant && variant.costPrice != null ? variant.costPrice : product.costPrice);
 
   const removeVariant = (product, variantId) => {
     const variants = (product.variants || []).filter((v) => v.id !== variantId);
@@ -2475,6 +2551,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
   const printLabel = (p, variant) => {
     const label = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
     const barcode = variant ? variant.barcode : p.barcode;
+    const price = variant && variant.price != null ? variant.price : p.price;
     const w = window.open("", "_blank", "width=420,height=320");
     w.document.write(`
       <html><head><title>Étiquette ${variant ? variant.sku : p.sku}</title>
@@ -2486,7 +2563,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
       <body>
         <h3>${label}</h3>
         <svg id="bc"></svg>
-        <div class="price">${fmt(p.price)} DHS</div>
+        <div class="price">${fmt(price)} DHS</div>
       </body></html>
     `);
     w.document.close();
@@ -2499,6 +2576,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
   const printQrLabel = async (p, variant) => {
     const label = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
     const code = variant ? variant.barcode : p.barcode;
+    const price = variant && variant.price != null ? variant.price : p.price;
     const dataUrl = await QRCode.toDataURL(code, { width: 220, margin: 1 });
     const w = window.open("", "_blank", "width=320,height=420");
     w.document.write(`
@@ -2514,7 +2592,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
         <h3>${label}</h3>
         <img src="${dataUrl}" width="200" height="200" />
         <div class="code">${code}</div>
-        <div class="price">${fmt(p.price)} DHS</div>
+        <div class="price">${fmt(price)} DHS</div>
       </body></html>
     `);
     w.document.close();
@@ -2861,6 +2939,28 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                                         <button onClick={() => updateVariantQty(p, v.id, 1)} className="w-6 h-6 rounded border flex items-center justify-center bg-white" style={{ borderColor: C.border }}><Plus size={12} /></button>
                                       </div>
                                     </td>
+                                    <td className="py-2">
+                                      <input
+                                        type="number"
+                                        className="w-20 border rounded px-2 py-1 text-xs"
+                                        style={inputStyle}
+                                        value={v.price != null ? v.price : ""}
+                                        placeholder={`${fmt(p.price)}`}
+                                        title="Prix de vente (vide = prix du produit)"
+                                        onChange={(e) => updateVariantPrice(p, v.id, "price", e.target.value)}
+                                      />
+                                    </td>
+                                    <td className="py-2">
+                                      <input
+                                        type="number"
+                                        className="w-20 border rounded px-2 py-1 text-xs"
+                                        style={inputStyle}
+                                        value={v.costPrice != null ? v.costPrice : ""}
+                                        placeholder={`${fmt(p.costPrice || 0)}`}
+                                        title="Coût d'achat (vide = coût du produit)"
+                                        onChange={(e) => updateVariantPrice(p, v.id, "costPrice", e.target.value)}
+                                      />
+                                    </td>
                                     <td className="py-2 text-right">
                                       <div className="flex items-center gap-2 justify-end">
                                         <button onClick={() => printLabel(p, v)} title="Imprimer l'étiquette (code-barres)"><Printer size={13} color={C.inkSoft} /></button>
@@ -2874,7 +2974,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                             </tbody>
                           </table>
                         )}
-                        <div className="grid md:grid-cols-5 gap-3 items-end">
+                        <div className="grid md:grid-cols-6 gap-3 items-end mb-3">
                           <Field label="Couleur">
                             <input className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.color} onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })} placeholder="Ex. Noir" />
                           </Field>
@@ -2887,10 +2987,16 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                           <Field label="Quantité">
                             <input type="number" className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.qty} onChange={(e) => setVariantForm({ ...variantForm, qty: e.target.value })} />
                           </Field>
-                          <button onClick={() => addVariant(p)} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
-                            <Plus size={14} /> Ajouter
-                          </button>
+                          <Field label={`Prix (déf. ${fmt(p.price)})`}>
+                            <input type="number" className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.price} onChange={(e) => setVariantForm({ ...variantForm, price: e.target.value })} placeholder="idem produit" />
+                          </Field>
+                          <Field label={`Coût (déf. ${fmt(p.costPrice || 0)})`}>
+                            <input type="number" className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.costPrice} onChange={(e) => setVariantForm({ ...variantForm, costPrice: e.target.value })} placeholder="idem produit" />
+                          </Field>
                         </div>
+                        <button onClick={() => addVariant(p)} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
+                          <Plus size={14} /> Ajouter la variante
+                        </button>
                       </td>
                     </tr>
                   )}
@@ -3200,7 +3306,13 @@ function Achats({ db, persist, notify, log }) {
       const idx = products.findIndex((p) => p.id === form.productId);
       if (idx === -1) return notify("Produit introuvable");
       products = adjustStock(products, form.productId, needsVariant ? form.variantId : null, qty);
-      products = products.map((p) => (p.id === form.productId ? { ...p, costPrice: unitCost } : p));
+      products = products.map((p) =>
+        p.id === form.productId
+          ? needsVariant
+            ? { ...p, variants: p.variants.map((v) => (v.id === form.variantId ? { ...v, costPrice: unitCost } : v)) }
+            : { ...p, costPrice: unitCost }
+          : p
+      );
       productName = products.find((p) => p.id === form.productId).name;
       if (needsVariant) {
         const v = products.find((p) => p.id === form.productId).variants.find((x) => x.id === form.variantId);
@@ -3419,7 +3531,16 @@ function Achats({ db, persist, notify, log }) {
           </Field>
           {needsVariant && (
             <Field label="Variante à réapprovisionner">
-              <select className={inputClass} style={inputStyle} value={form.variantId} onChange={(e) => setForm({ ...form, variantId: e.target.value })}>
+              <select
+                className={inputClass}
+                style={inputStyle}
+                value={form.variantId}
+                onChange={(e) => {
+                  const v = selectedProduct.variants.find((x) => x.id === e.target.value);
+                  const cost = v && v.costPrice != null ? v.costPrice : selectedProduct.costPrice;
+                  setForm({ ...form, variantId: e.target.value, unitCost: cost != null ? String(cost) : form.unitCost });
+                }}
+              >
                 <option value="">— Choisir —</option>
                 {selectedProduct.variants.map((v) => (
                   <option key={v.id} value={v.id}>{variantLabel(v) || "Standard"} ({v.qty || 0} en stock)</option>
@@ -3631,7 +3752,8 @@ function Ventes({ db, persist, notify, session }) {
         return c.map((i) => (cartKey(i.productId, i.variantId) === key ? { ...i, qty: i.qty + 1 } : i));
       }
       const name = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
-      return [...c, { productId: p.id, variantId: variant ? variant.id : null, name, price: p.price, qty: 1 }];
+      const price = variant && variant.price != null ? variant.price : p.price;
+      return [...c, { productId: p.id, variantId: variant ? variant.id : null, name, price, qty: 1 }];
     });
     setPickingProduct(null);
   };
