@@ -328,7 +328,14 @@ async function sbLoadLatestBackup(session) {
 }
 
 // ---------- Boutique en ligne (site public) ----------
-async function sbSyncPublicProducts(session, products) {
+async function sbSyncPublicProducts(session, products, sales) {
+  const soldQty = {};
+  (sales || []).forEach((s) => {
+    if (s.returned) return;
+    (s.items || []).forEach((i) => {
+      soldQty[i.productId] = (soldQty[i.productId] || 0) + i.qty;
+    });
+  });
   const rows = (products || [])
     .filter((p) => p.publishedOnline)
     .map((p) => ({
@@ -336,8 +343,10 @@ async function sbSyncPublicProducts(session, products) {
       name: p.name,
       category: p.category || "",
       price: p.price || 0,
-      image_url: p.image || "",
+      image_url: p.image || (p.images && p.images[0]) || "",
+      images: p.images && p.images.length > 0 ? p.images : p.image ? [p.image] : [],
       in_stock: productQty(p) > 0,
+      sales_count: soldQty[p.id] || 0,
       updated_at: new Date().toISOString(),
     }));
   if (rows.length === 0) return { ok: true };
@@ -576,7 +585,7 @@ export default function App() {
     }
     if (session) {
       sbSaveBackup(session, next); // sauvegarde cloud automatique, en arrière-plan
-      sbSyncPublicProducts(session, next.products); // maintient le catalogue du site à jour
+      sbSyncPublicProducts(session, next.products, next.sales); // maintient le catalogue du site à jour
     }
   };
 
@@ -2191,6 +2200,65 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
     }
   };
 
+  const printOrderInvoice = (o) => {
+    const company = db.company || {};
+    const rowsHtml = (o.items || [])
+      .map(
+        (i) => `<tr>
+          <td style="padding:6px 0;">${i.name}</td>
+          <td style="padding:6px 0;text-align:center;">${i.qty}</td>
+          <td style="padding:6px 0;text-align:right;">${fmt(i.price)} DHS</td>
+          <td style="padding:6px 0;text-align:right;">${fmt(i.price * i.qty)} DHS</td>
+        </tr>`
+      )
+      .join("");
+    const html = `
+      <html>
+        <head>
+          <title>Facture — ${o.client_name}</title>
+          <style>
+            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 720px; margin: auto; }
+            h1 { font-style: italic; margin-bottom: 0; }
+            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
+            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+            th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
+            th:nth-child(2) { text-align: center; } th:nth-child(3), th:nth-child(4) { text-align: right; }
+            tr td { border-bottom: 1px solid #EEE; }
+            .total { text-align: right; margin-top: 14px; font-size: 22px; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <h1>${company.name || "Electrolik"}</h1>
+          <div class="muted" style="margin-top:12px;">Facture — Commande en ligne</div>
+          <p>
+            Client : ${o.client_name}<br/>
+            Téléphone : ${o.client_phone}<br/>
+            Adresse : ${o.client_address}, ${o.client_city}<br/>
+            Date : ${new Date(o.created_at).toLocaleDateString("fr-FR")}
+          </p>
+          <table>
+            <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+          <div class="total">Total à payer à la livraison : ${fmt(o.total)} DHS</div>
+        </body>
+      </html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
+  const sendWhatsappConfirmation = (o) => {
+    let phone = o.client_phone.replace(/[\s.\-()]/g, "");
+    if (phone.startsWith("0")) phone = "212" + phone.slice(1);
+    else if (!phone.startsWith("212")) phone = "212" + phone;
+    const itemsList = (o.items || []).map((i) => `- ${i.name} x${i.qty}`).join("\n");
+    const msg = `Bonjour ${o.client_name}, votre commande Electrolik est confirmée ✅\n\n${itemsList}\n\nTotal à payer à la livraison : ${fmt(o.total)} DHS\n\nMerci de votre confiance !`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
+  };
+
   const toggleSelect = (id) => setSelected((s) => ({ ...s, [id]: !s[id] }));
   const selectAll = () => {
     const allSelected = orders.every((o) => selected[o.id]);
@@ -2323,6 +2391,12 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
                     Annuler
                   </button>
                 )}
+                <button onClick={() => printOrderInvoice(o)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
+                  <Printer size={12} /> Facture PDF
+                </button>
+                <button onClick={() => sendWhatsappConfirmation(o)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: "#25D366" }}>
+                  <MessageCircle size={12} /> Confirmer par WhatsApp
+                </button>
               </div>
               </div>
             </div>
@@ -2334,7 +2408,7 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
 }
 
 function Stock({ db, persist, notify, log, session, initialQuery }) {
-  const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
+  const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
   const [q, setQ] = useState(initialQuery || "");
   const [stockFilter, setStockFilter] = useState("all"); // all | low | out
   const [editingId, setEditingId] = useState(null);
@@ -2421,12 +2495,19 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     setUploading(true);
     try {
       const url = await sbUploadProductImage(session, file);
-      setForm((f) => ({ ...f, image: url }));
-      notify("Image envoyée");
+      setForm((f) => ({ ...f, images: [...(f.images || []), url], image: f.images && f.images.length > 0 ? f.image : url }));
+      notify("Image ajoutée");
     } catch (e) {
       notify(e.message || "Échec de l'envoi de l'image");
     }
     setUploading(false);
+  };
+
+  const removeImage = (idx) => {
+    setForm((f) => {
+      const images = (f.images || []).filter((_, i) => i !== idx);
+      return { ...f, images, image: images[0] || "" };
+    });
   };
 
   const startEdit = (p) => {
@@ -2441,20 +2522,23 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
       qty: String(p.qty),
       minQty: String(p.minQty),
       image: p.image || "",
+      images: p.images && p.images.length > 0 ? p.images : p.image ? [p.image] : [],
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelEdit = () => {
     setEditingId(null);
-    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
+    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
   };
 
   const addProduct = () => {
     if (!form.name || !form.price) return notify("Nom et prix requis");
+    const images = form.images || [];
 
     if (editingId) {
       const before = db.products.find((p) => p.id === editingId);
+      const priceChanged = Number(form.price) !== before.price;
       const updated = {
         ...before,
         name: form.name,
@@ -2465,7 +2549,11 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
         costPrice: Number(form.costPrice) || 0,
         qty: before.variants && before.variants.length > 0 ? before.qty : Number(form.qty) || 0,
         minQty: Number(form.minQty) || 0,
-        image: form.image || "",
+        image: images[0] || "",
+        images,
+        priceHistory: priceChanged
+          ? [...(before.priceHistory || []), { date: today(), price: before.price, costPrice: before.costPrice || 0 }]
+          : before.priceHistory || [],
       };
       persist({ ...db, products: db.products.map((p) => (p.id === editingId ? updated : p)) });
       if (log) log("update_product", "products", editingId, { name: updated.name });
@@ -2484,11 +2572,13 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
       costPrice: Number(form.costPrice) || 0,
       qty: Number(form.qty) || 0,
       minQty: Number(form.minQty) || 0,
-      image: form.image || "",
+      image: images[0] || "",
+      images,
+      priceHistory: [],
       variants: [],
     };
     persist({ ...db, products: [...db.products, p] });
-    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "" });
+    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
     notify("Produit ajouté");
   };
 
@@ -2606,7 +2696,7 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     persist({ ...db, products: nextProducts });
 
     if (nextPublished && session) {
-      const result = await sbSyncPublicProducts(session, nextProducts);
+      const result = await sbSyncPublicProducts(session, nextProducts, db.sales);
       if (!result.ok) {
         notify(`Échec de la publication sur le site : ${result.error || "erreur inconnue"}`);
         return;
@@ -2661,20 +2751,30 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
           {editingId ? "Modifier le produit" : "Nouveau produit"}
         </div>
 
-        <div className="flex items-center gap-4 mb-4">
-          <div
-            className="w-20 h-20 rounded-md border flex items-center justify-center overflow-hidden shrink-0"
-            style={{ borderColor: C.border, background: C.paper }}
-          >
-            {form.image ? (
-              <img src={form.image} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <ImageIcon size={22} color={C.inkSoft} />
-            )}
-          </div>
-          <div>
-            <label className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border cursor-pointer" style={{ borderColor: C.border, color: C.ink }}>
-              <Upload size={14} /> {uploading ? "Envoi…" : "Choisir une photo"}
+        <div className="mb-4">
+          <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Photos ({(form.images || []).length})</div>
+          <div className="flex items-center gap-3 flex-wrap">
+            {(form.images || []).map((img, idx) => (
+              <div key={idx} className="relative w-20 h-20 rounded-md border overflow-hidden shrink-0" style={{ borderColor: C.border }}>
+                <img src={img} alt="" className="w-full h-full object-cover" />
+                {idx === 0 && (
+                  <span className="absolute top-0 left-0 text-[9px] px-1.5 py-0.5" style={{ background: C.accent, color: "#fff" }}>Couverture</span>
+                )}
+                <button
+                  onClick={() => removeImage(idx)}
+                  className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center"
+                  style={{ background: "rgba(0,0,0,0.6)" }}
+                >
+                  <X size={11} color="#fff" />
+                </button>
+              </div>
+            ))}
+            <label
+              className="w-20 h-20 rounded-md border-2 border-dashed flex flex-col items-center justify-center cursor-pointer shrink-0 gap-1"
+              style={{ borderColor: C.border, color: C.inkSoft }}
+            >
+              <Upload size={16} />
+              <span className="text-[10px]">{uploading ? "…" : "Ajouter"}</span>
               <input
                 type="file"
                 accept="image/*"
@@ -2683,12 +2783,8 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                 onChange={(e) => handleImageUpload(e.target.files[0])}
               />
             </label>
-            {form.image && (
-              <button onClick={() => setForm({ ...form, image: "" })} className="ml-2 text-xs" style={{ color: C.danger }}>
-                Retirer
-              </button>
-            )}
           </div>
+          <p className="text-xs mt-2" style={{ color: C.inkSoft }}>La première photo est utilisée comme couverture (étiquettes, vignette du site).</p>
         </div>
 
         <div className="grid md:grid-cols-8 gap-3">
@@ -2920,6 +3016,22 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
                   {expanded && (
                     <tr>
                       <td colSpan={9} className="px-4 py-4" style={{ background: C.paper }}>
+                        {(p.priceHistory || []).length > 0 && (
+                          <div className="mb-5">
+                            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Historique des prix</div>
+                            <div className="flex flex-wrap gap-2">
+                              {[...p.priceHistory].reverse().map((h, idx) => (
+                                <div key={idx} className="text-xs px-2.5 py-1.5 rounded-md border" style={{ borderColor: C.border, background: C.paperCard }}>
+                                  <span style={{ color: C.inkSoft }}>{h.date}</span>
+                                  <span style={{ ...monoFont, color: C.ink }} className="ml-2">{fmt(h.price)} DHS</span>
+                                </div>
+                              ))}
+                              <div className="text-xs px-2.5 py-1.5 rounded-md" style={{ background: C.accentSoft, color: "#8A6D00" }}>
+                                <span style={monoFont}>Actuel : {fmt(p.price)} DHS</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                         <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-3">
                           Variantes de "{p.name}" (couleur / taille / longueur)
                         </div>
