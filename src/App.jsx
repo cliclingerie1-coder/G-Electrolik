@@ -430,6 +430,7 @@ const DEFAULT_DB = {
   nextBL: 1,
   company: { name: "Electrolik", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20, monthlyTarget: 0 },
   charges: [],
+  recurringCharges: [],
   returns: [],
 };
 
@@ -1959,6 +1960,11 @@ function Aujourdhui({ db, setTab }) {
 
   const rupture = db.products.filter((p) => productQty(p) <= 0);
 
+  const chargesToRemind = (db.recurringCharges || [])
+    .map((c) => ({ ...c, days: daysUntil(c.nextDueDate) }))
+    .filter((c) => c.days <= 5)
+    .sort((a, b) => a.days - b.days);
+
   const sections = [
     {
       title: "Colis à suivre",
@@ -1975,6 +1981,14 @@ function Aujourdhui({ db, setTab }) {
       tab: "cheques",
       empty: "Aucune échéance de chèque dans les 7 prochains jours.",
       items: echeances.slice(0, 6).map((e) => ({ label: e.label, sub: `${fmt(e.amount)} DHS · ${e.days < 0 ? `en retard (${Math.abs(e.days)} j)` : e.days === 0 ? "aujourd'hui" : `dans ${e.days} j`}` })),
+    },
+    {
+      title: "Charges à payer",
+      icon: PackagePlus,
+      count: chargesToRemind.length,
+      tab: "charges",
+      empty: "Aucune charge récurrente à payer bientôt.",
+      items: chargesToRemind.slice(0, 6).map((c) => ({ label: c.label, sub: `${fmt(c.amount)} DHS · ${c.days < 0 ? `en retard (${Math.abs(c.days)} j)` : c.days === 0 ? "aujourd'hui" : `dans ${c.days} j`}` })),
     },
     {
       title: "Clients à relancer",
@@ -4973,11 +4987,13 @@ function Cheques({ db, persist, notify, log }) {
     const chequesDue = db.cheques
       .filter((c) => c.status === "pending")
       .map((c) => ({ kind: "cheque", label: `Chèque ${c.number} (${c.type === "received" ? "reçu de" : "à payer à"} ${c.party})`, amount: c.amount, date: c.dueDate, days: daysUntil(c.dueDate) }));
+    const chargesDue = (db.recurringCharges || [])
+      .map((c) => ({ kind: "charge", label: `Charge récurrente : ${c.label}`, amount: c.amount, date: c.nextDueDate, days: daysUntil(c.nextDueDate) }));
     const suppliersDue = (db.suppliers || [])
       .filter((s) => (s.balanceDue || 0) > 0)
       .map((s) => ({ kind: "fournisseur", label: `Solde dû à ${s.name}`, amount: s.balanceDue, date: null, days: null }));
-    return [...chequesDue.sort((a, b) => a.days - b.days), ...suppliersDue.sort((a, b) => b.amount - a.amount)];
-  }, [db.cheques, db.suppliers]);
+    return [...chequesDue.sort((a, b) => a.days - b.days), ...chargesDue.sort((a, b) => a.days - b.days), ...suppliersDue.sort((a, b) => b.amount - a.amount)];
+  }, [db.cheques, db.suppliers, db.recurringCharges]);
 
   return (
     <div>
@@ -5576,8 +5592,10 @@ function Equipe({ session, notify, log }) {
 // ---------- Charges ----------
 function Charges({ db, persist, notify, log }) {
   const [form, setForm] = useState({ label: "", category: "Loyer", amount: "", date: today() });
+  const [recurForm, setRecurForm] = useState({ label: "", category: "Loyer", amount: "", frequency: "mensuelle", nextDueDate: today() });
 
-  const categories = ["Loyer", "Électricité / Eau", "Salaires", "Transport", "Marketing", "Internet / Téléphone", "Autre"];
+  const categories = ["Loyer", "Électricité / Eau", "Salaires", "Transport", "Marketing", "Internet / Téléphone", "Emballage / Fournitures", "Autre"];
+  const frequencies = { hebdomadaire: 7, mensuelle: 30, annuelle: 365 };
 
   const addCharge = () => {
     if (!form.label || !form.amount) return notify("Description et montant requis");
@@ -5586,6 +5604,29 @@ function Charges({ db, persist, notify, log }) {
     if (log) log("create_charge", "charges", charge.id, { label: charge.label, amount: charge.amount });
     setForm({ label: "", category: "Loyer", amount: "", date: today() });
     notify("Charge enregistrée");
+  };
+
+  const addRecurring = () => {
+    if (!recurForm.label || !recurForm.amount) return notify("Description et montant requis");
+    const rc = { id: uid(), label: recurForm.label, category: recurForm.category, amount: Number(recurForm.amount), frequency: recurForm.frequency, nextDueDate: recurForm.nextDueDate };
+    persist({ ...db, recurringCharges: [...(db.recurringCharges || []), rc] });
+    if (log) log("create_recurring_charge", "recurringCharges", rc.id, { label: rc.label });
+    setRecurForm({ label: "", category: "Loyer", amount: "", frequency: "mensuelle", nextDueDate: today() });
+    notify("Charge récurrente ajoutée");
+  };
+
+  const markRecurringPaid = (rc) => {
+    const charge = { id: uid(), date: today(), label: rc.label, category: rc.category, amount: rc.amount };
+    const nextDue = new Date(rc.nextDueDate);
+    nextDue.setDate(nextDue.getDate() + frequencies[rc.frequency]);
+    const recurringCharges = db.recurringCharges.map((x) => (x.id === rc.id ? { ...x, nextDueDate: nextDue.toISOString().slice(0, 10) } : x));
+    persist({ ...db, charges: [...(db.charges || []), charge], recurringCharges });
+    if (log) log("pay_recurring_charge", "charges", charge.id, { label: rc.label, amount: rc.amount });
+    notify(`"${rc.label}" marquée payée — prochaine échéance : ${nextDue.toISOString().slice(0, 10)}`);
+  };
+
+  const removeRecurring = (id) => {
+    persist({ ...db, recurringCharges: (db.recurringCharges || []).filter((x) => x.id !== id) });
   };
 
   const removeCharge = (id) => {
@@ -5602,6 +5643,8 @@ function Charges({ db, persist, notify, log }) {
     (db.charges || []).forEach((c) => { map[c.category] = (map[c.category] || 0) + c.amount; });
     return Object.entries(map).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
   }, [db.charges]);
+
+  const daysUntil = (d) => Math.floor((new Date(d) - new Date(today())) / 86400000);
 
   return (
     <div>
@@ -5637,6 +5680,71 @@ function Charges({ db, persist, notify, log }) {
         <button onClick={addCharge} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
           <Plus size={14} /> Ajouter la charge
         </button>
+      </div>
+
+      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Charges récurrentes (avec rappel)</div>
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
+        <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+          Pour les charges qui reviennent régulièrement (loyer, internet…). Une fois payée, l'échéance suivante est calculée automatiquement et un rappel apparaît dans "Aujourd'hui" et le calendrier des échéances.
+        </p>
+        <div className="grid md:grid-cols-5 gap-3">
+          <Field label="Description">
+            <input className={inputClass} style={inputStyle} value={recurForm.label} onChange={(e) => setRecurForm({ ...recurForm, label: e.target.value })} placeholder="Ex. Internet" />
+          </Field>
+          <Field label="Catégorie">
+            <select className={inputClass} style={inputStyle} value={recurForm.category} onChange={(e) => setRecurForm({ ...recurForm, category: e.target.value })}>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </Field>
+          <Field label="Montant (DHS)">
+            <input type="number" className={inputClass} style={inputStyle} value={recurForm.amount} onChange={(e) => setRecurForm({ ...recurForm, amount: e.target.value })} />
+          </Field>
+          <Field label="Fréquence">
+            <select className={inputClass} style={inputStyle} value={recurForm.frequency} onChange={(e) => setRecurForm({ ...recurForm, frequency: e.target.value })}>
+              <option value="hebdomadaire">Chaque semaine</option>
+              <option value="mensuelle">Chaque mois</option>
+              <option value="annuelle">Chaque année</option>
+            </select>
+          </Field>
+          <Field label="Prochaine échéance">
+            <input type="date" className={inputClass} style={inputStyle} value={recurForm.nextDueDate} onChange={(e) => setRecurForm({ ...recurForm, nextDueDate: e.target.value })} />
+          </Field>
+        </div>
+        <button onClick={addRecurring} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
+          <Plus size={14} /> Ajouter la charge récurrente
+        </button>
+
+        {(db.recurringCharges || []).length > 0 && (
+          <div className="mt-5 space-y-2">
+            {[...db.recurringCharges].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate)).map((rc) => {
+              const days = daysUntil(rc.nextDueDate);
+              return (
+                <div key={rc.id} className="flex items-center justify-between text-sm py-2 border-t" style={{ borderColor: C.border }}>
+                  <div>
+                    <span style={{ color: C.ink }}>{rc.label}</span>
+                    <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="ml-2">{rc.category} · {fmt(rc.amount)} DHS · {rc.frequency}</span>
+                    <span
+                      className="ml-2 text-[10px] px-2 py-0.5 rounded"
+                      style={{
+                        ...monoFont,
+                        background: days < 0 ? C.dangerSoft : days <= 5 ? C.accentSoft : C.border,
+                        color: days < 0 ? C.danger : days <= 5 ? "#8A6D00" : C.inkSoft,
+                      }}
+                    >
+                      {days < 0 ? `En retard (${Math.abs(days)} j)` : days === 0 ? "Aujourd'hui" : `Dans ${days} j`}
+                    </span>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button onClick={() => markRecurringPaid(rc)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
+                      Marquer payée
+                    </button>
+                    <button onClick={() => removeRecurring(rc.id)}><Trash2 size={13} color={C.danger} /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {byCategory.length > 0 && (
