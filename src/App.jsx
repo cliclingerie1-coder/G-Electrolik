@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise, Bell, Globe
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise, Bell, Globe, Star, Tag
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -328,7 +328,7 @@ async function sbLoadLatestBackup(session) {
 }
 
 // ---------- Boutique en ligne (site public) ----------
-async function sbSyncPublicProducts(session, products, sales) {
+async function sbSyncPublicProducts(session, products, sales, onlineOrders) {
   const soldQty = {};
   (sales || []).forEach((s) => {
     if (s.returned) return;
@@ -336,19 +336,31 @@ async function sbSyncPublicProducts(session, products, sales) {
       soldQty[i.productId] = (soldQty[i.productId] || 0) + i.qty;
     });
   });
+  // Réserve le stock des commandes pas encore expédiées/annulées, pour éviter la survente sur le site
+  const reservedQty = {};
+  (onlineOrders || []).forEach((o) => {
+    if (o.status === "annulee" || o.status === "expediee") return;
+    (o.items || []).forEach((i) => {
+      reservedQty[i.product_id] = (reservedQty[i.product_id] || 0) + i.qty;
+    });
+  });
   const rows = (products || [])
     .filter((p) => p.publishedOnline)
-    .map((p) => ({
-      id: p.id,
-      name: p.name,
-      category: p.category || "",
-      price: p.price || 0,
-      image_url: p.image || (p.images && p.images[0]) || "",
-      images: p.images && p.images.length > 0 ? p.images : p.image ? [p.image] : [],
-      in_stock: productQty(p) > 0,
-      sales_count: soldQty[p.id] || 0,
-      updated_at: new Date().toISOString(),
-    }));
+    .map((p) => {
+      const available = Math.max(0, productQty(p) - (reservedQty[p.id] || 0));
+      return {
+        id: p.id,
+        name: p.name,
+        category: p.category || "",
+        price: p.price || 0,
+        image_url: p.image || (p.images && p.images[0]) || "",
+        images: p.images && p.images.length > 0 ? p.images : p.image ? [p.image] : [],
+        in_stock: available > 0,
+        available_qty: available,
+        sales_count: soldQty[p.id] || 0,
+        updated_at: new Date().toISOString(),
+      };
+    });
   if (rows.length === 0) return { ok: true };
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/public_products?on_conflict=id`, {
@@ -400,6 +412,83 @@ async function sbUpdateOrderStatus(session, orderId, status) {
     });
   } catch (e) {
     console.error("Update order status error", e);
+  }
+}
+
+// ---------- Modération des avis clients ----------
+async function sbFetchAllReviews(session) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/product_reviews?select=*&order=created_at.desc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.accessToken}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error("Fetch reviews error", e);
+    return [];
+  }
+}
+
+async function sbDeleteReview(session, reviewId) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/product_reviews?id=eq.${reviewId}`, {
+      method: "DELETE",
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.accessToken}` },
+    });
+    return true;
+  } catch (e) {
+    console.error("Delete review error", e);
+    return false;
+  }
+}
+
+// ---------- Codes promo ----------
+async function sbFetchPromoCodes(session) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/promo_codes?select=*&order=created_at.desc`, {
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${session.accessToken}` },
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (e) {
+    console.error("Fetch promo codes error", e);
+    return [];
+  }
+}
+
+async function sbCreatePromoCode(session, promo) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/promo_codes`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(promo),
+    });
+    return res.ok;
+  } catch (e) {
+    console.error("Create promo code error", e);
+    return false;
+  }
+}
+
+async function sbUpdatePromoCode(session, id, patch) {
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/promo_codes?id=eq.${id}`, {
+      method: "PATCH",
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${session.accessToken}`,
+        "Content-Type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify(patch),
+    });
+  } catch (e) {
+    console.error("Update promo code error", e);
   }
 }
 
@@ -521,6 +610,8 @@ export default function App() {
         }
       }
       localStorage.setItem("ek-seen-orders", JSON.stringify(orders.map((o) => o.id)));
+      // Maintient le stock "disponible" du site à jour selon les commandes en attente (anti-survente)
+      sbSyncPublicProducts(session, dbRef.current.products, dbRef.current.sales, orders);
     };
     checkNewOrders();
     const t = setInterval(checkNewOrders, 25000);
@@ -575,6 +666,13 @@ export default function App() {
   // Garde la trace de la donnée la plus fraîche connue (locale ou distante), pour éviter
   // qu'une vérification cloud en retard n'écrase par erreur une modification toute récente
   const lastKnownTimestampRef = useRef(null);
+
+  // Référence toujours à jour vers db, utilisée dans les callbacks async (polling) qui ne doivent
+  // pas capturer une version périmée de db dans leur closure
+  const dbRef = useRef(db);
+  useEffect(() => {
+    dbRef.current = db;
+  }, [db]);
 
   const persist = async (next) => {
     setDb(next);
@@ -651,6 +749,8 @@ export default function App() {
     { id: "inventaire", label: "Inventaire", icon: ClipboardCheck },
     { id: "caisse", label: "Caisse", icon: Wallet },
     { id: "commandes", label: "Commandes en ligne", icon: Globe },
+    { id: "avis", label: "Avis clients", icon: Star },
+    { id: "promos", label: "Codes promo", icon: Tag },
     { id: "calculateur", label: "Calculateur marketplace", icon: Calculator },
     { id: "clients", label: "Clients", icon: Users },
     { id: "fournisseurs", label: "Fournisseurs", icon: Truck },
@@ -764,6 +864,8 @@ export default function App() {
         {tab === "inventaire" && <Inventaire db={db} persist={persist} notify={notify} log={log} />}
         {tab === "caisse" && <Caisse db={db} persist={persist} notify={notify} log={log} />}
         {tab === "commandes" && <CommandesEnLigne db={db} persist={persist} notify={notify} log={log} session={session} />}
+        {tab === "avis" && <AvisClients db={db} notify={notify} log={log} session={session} />}
+        {tab === "promos" && <CodesPromo db={db} notify={notify} log={log} session={session} />}
         {tab === "calculateur" && <MarketplaceCalculator db={db} persist={persist} notify={notify} />}
         {tab === "clients" && <Clients db={db} persist={persist} notify={notify} log={log} initialClientId={deepLinkClientId} />}
         {tab === "fournisseurs" && <Fournisseurs db={db} persist={persist} notify={notify} log={log} />}
@@ -1516,6 +1618,60 @@ function Rapports({ db, session }) {
     return Object.values(map).sort((a, b) => b.margin - a.margin);
   }, [mySales, db.products]);
 
+  const printMonthlyReport = () => {
+    const company = db.company || {};
+    const currentMonth = today().slice(0, 7);
+    const monthSales = mySales.filter((s) => !s.returned && s.date.slice(0, 7) === currentMonth);
+    const revenue = monthSales.reduce((s, x) => s + x.total, 0);
+    const margin = monthSales.reduce((s, sale) => s + (sale.items || []).reduce((sm, item) => {
+      const prod = db.products.find((p) => p.id === item.productId);
+      const cost = prod ? prod.costPrice || 0 : 0;
+      return sm + (item.price - cost) * item.qty;
+    }, 0), 0);
+    const topProductsMap = {};
+    monthSales.forEach((s) => (s.items || []).forEach((i) => {
+      topProductsMap[i.name] = (topProductsMap[i.name] || 0) + i.qty * i.price;
+    }));
+    const topProducts = Object.entries(topProductsMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const byVendorMap = {};
+    monthSales.forEach((s) => { byVendorMap[s.soldBy || "—"] = (byVendorMap[s.soldBy || "—"] || 0) + s.total; });
+    const byVendor = Object.entries(byVendorMap).sort((a, b) => b[1] - a[1]);
+
+    const html = `
+      <html>
+        <head>
+          <title>Rapport mensuel — ${currentMonth}</title>
+          <style>
+            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 720px; margin: auto; }
+            h1 { font-style: italic; margin-bottom: 0; }
+            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 24px; margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; }
+            td { padding: 5px 0; border-bottom: 1px solid #EEE; }
+            .stats { display: flex; gap: 24px; margin-top: 16px; }
+            .stat b { display: block; font-size: 22px; font-style: italic; }
+          </style>
+        </head>
+        <body>
+          <h1>${company.name || "Electrolik"}</h1>
+          <div class="muted">Rapport mensuel — ${currentMonth}</div>
+          <div class="stats">
+            <div class="stat"><span>Chiffre d'affaires</span><b>${fmt(revenue)} DHS</b></div>
+            <div class="stat"><span>Marge</span><b>${fmt(margin)} DHS</b></div>
+            <div class="stat"><span>Nombre de ventes</span><b>${monthSales.length}</b></div>
+          </div>
+          <div class="muted">Meilleures ventes</div>
+          <table>${topProducts.map(([name, total]) => `<tr><td>${name}</td><td style="text-align:right;">${fmt(total)} DHS</td></tr>`).join("")}</table>
+          <div class="muted">Par vendeur</div>
+          <table>${byVendor.map(([name, total]) => `<tr><td>${name}</td><td style="text-align:right;">${fmt(total)} DHS</td></tr>`).join("")}</table>
+        </body>
+      </html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   const exportExcel = () => {
     const rows = grouped.map((g) => ({
       Période: g.period,
@@ -1555,6 +1711,9 @@ function Rapports({ db, session }) {
             </div>
             <button onClick={exportExcel} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
               <Download size={13} /> Excel
+            </button>
+            <button onClick={printMonthlyReport} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
+              <Printer size={13} /> Rapport mensuel (PDF)
             </button>
           </div>
         }
@@ -2204,13 +2363,31 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
     setOrders((list) => list.map((o) => (o.id === order.id ? { ...o, status } : o)));
     if (log) log("update_commande_ligne", "online_orders", order.id, { status });
 
+    let products = db.products;
+    let clients = db.clients;
+
     // Confirmer une commande décrémente le stock correspondant côté Electrolik
+    // et attribue des points de fidélité au client (retrouvé ou créé via son téléphone)
     if (status === "confirmee" && order.status !== "confirmee") {
-      let products = db.products;
       (order.items || []).forEach((i) => {
         products = adjustStock(products, i.product_id, null, -i.qty);
       });
-      persist({ ...db, products });
+      const phoneNorm = (order.client_phone || "").replace(/[\s.\-()]/g, "");
+      let existing = clients.find((c) => (c.phone || "").replace(/[\s.\-()]/g, "") === phoneNorm && phoneNorm);
+      const earnedPoints = Math.floor((order.total || 0) / 10);
+      if (existing) {
+        clients = clients.map((c) => (c.id === existing.id ? { ...c, loyaltyPoints: (c.loyaltyPoints || 0) + earnedPoints } : c));
+      } else if (phoneNorm) {
+        clients = [...clients, { id: uid(), name: order.client_name, phone: order.client_phone, paymentMode: "surplace", balanceDue: 0, loyaltyPoints: earnedPoints }];
+      }
+    }
+
+    const nextDb = { ...db, products, clients };
+    persist(nextDb);
+    // Remet à jour le stock réservé visible sur le site (évite la survente)
+    if (session) {
+      const freshOrders = orders.map((o) => (o.id === order.id ? { ...o, status } : o));
+      sbSyncPublicProducts(session, products, nextDb.sales, freshOrders);
     }
   };
 
@@ -2415,6 +2592,180 @@ function CommandesEnLigne({ db, persist, notify, log, session }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Modération des avis clients ----------
+function AvisClients({ db, notify, log, session }) {
+  const [reviews, setReviews] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    setReviews(await sbFetchAllReviews(session));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const removeReview = async (r) => {
+    const ok = await sbDeleteReview(session, r.id);
+    if (ok) {
+      setReviews((list) => list.filter((x) => x.id !== r.id));
+      if (log) log("delete_review", "product_reviews", r.id, { client: r.client_name });
+      notify("Avis supprimé");
+    } else {
+      notify("Échec de la suppression");
+    }
+  };
+
+  const productName = (productId) => {
+    const p = db.products.find((x) => x.id === productId);
+    return p ? p.name : productId;
+  };
+
+  return (
+    <div>
+      <SectionTitle
+        eyebrow="Boutique en ligne"
+        title="Avis clients"
+        action={
+          <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
+            <RotateCcw size={13} /> Actualiser
+          </button>
+        }
+      />
+      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
+        Modère les avis laissés par les visiteurs sur le site — supprime tout avis inapproprié ou indésirable.
+      </p>
+
+      {loading ? (
+        <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
+      ) : reviews.length === 0 ? (
+        <div className="text-center py-16 text-sm" style={{ color: C.inkSoft }}>Aucun avis pour l'instant.</div>
+      ) : (
+        <div className="space-y-3">
+          {reviews.map((r) => (
+            <div key={r.id} className="rounded-xl border p-4 flex items-start justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span style={{ color: C.ink }} className="text-sm">{r.client_name}</span>
+                  <span style={{ ...monoFont, color: C.accent, fontSize: 11 }}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
+                </div>
+                <div className="text-xs mb-1" style={{ color: C.inkSoft }}>Produit : {productName(r.product_id)}</div>
+                {r.comment && <p className="text-sm" style={{ color: C.ink }}>{r.comment}</p>}
+                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="mt-1">{new Date(r.created_at).toLocaleDateString("fr-FR")}</div>
+              </div>
+              <button onClick={() => removeReview(r)} title="Supprimer cet avis"><Trash2 size={15} color={C.danger} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Codes promo ----------
+function CodesPromo({ db, notify, log, session }) {
+  const [promos, setPromos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState({ code: "", discount_percent: "10", expires_at: "" });
+
+  const load = async () => {
+    setLoading(true);
+    setPromos(await sbFetchPromoCodes(session));
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const addPromo = async () => {
+    if (!form.code.trim()) return notify("Le code est requis");
+    const ok = await sbCreatePromoCode(session, {
+      code: form.code.trim().toUpperCase(),
+      discount_percent: Number(form.discount_percent) || 0,
+      active: true,
+      expires_at: form.expires_at || null,
+    });
+    if (ok) {
+      if (log) log("create_promo", "promo_codes", form.code, { discount: form.discount_percent });
+      setForm({ code: "", discount_percent: "10", expires_at: "" });
+      notify("Code promo créé");
+      load();
+    } else {
+      notify("Échec de la création (ce code existe peut-être déjà)");
+    }
+  };
+
+  const toggleActive = async (p) => {
+    await sbUpdatePromoCode(session, p.id, { active: !p.active });
+    setPromos((list) => list.map((x) => (x.id === p.id ? { ...x, active: !x.active } : x)));
+  };
+
+  return (
+    <div>
+      <SectionTitle eyebrow="Boutique en ligne" title="Codes promo" />
+      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
+        Crée des codes de réduction temporaires que les clients peuvent utiliser au moment de payer sur le site.
+      </p>
+
+      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau code</div>
+        <div className="grid md:grid-cols-3 gap-3">
+          <Field label="Code">
+            <input className={inputClass} style={inputStyle} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Ex. RAMADAN10" />
+          </Field>
+          <Field label="Réduction (%)">
+            <input type="number" min="0" max="100" className={inputClass} style={inputStyle} value={form.discount_percent} onChange={(e) => setForm({ ...form, discount_percent: e.target.value })} />
+          </Field>
+          <Field label="Expire le (optionnel)">
+            <input type="date" className={inputClass} style={inputStyle} value={form.expires_at} onChange={(e) => setForm({ ...form, expires_at: e.target.value })} />
+          </Field>
+        </div>
+        <button onClick={addPromo} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
+          <Plus size={14} /> Créer le code
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
+      ) : promos.length === 0 ? (
+        <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun code promo pour l'instant.</div>
+      ) : (
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
+                <td className="px-4 py-3">Code</td><td className="px-4 py-3">Réduction</td><td className="px-4 py-3">Expire le</td><td className="px-4 py-3">Statut</td><td className="px-4 py-3"></td>
+              </tr>
+            </thead>
+            <tbody>
+              {promos.map((p) => (
+                <tr key={p.id} className="border-b" style={{ borderColor: C.border }}>
+                  <td className="px-4 py-3" style={monoFont}>{p.code}</td>
+                  <td className="px-4 py-3" style={monoFont}>{p.discount_percent}%</td>
+                  <td className="px-4 py-3" style={{ color: C.inkSoft }}>{p.expires_at || "—"}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-[10px] px-2 py-0.5 rounded" style={{ ...monoFont, background: p.active ? C.successSoft : C.dangerSoft, color: p.active ? C.success : C.danger }}>
+                      {p.active ? "ACTIF" : "INACTIF"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button onClick={() => toggleActive(p)} className="text-xs px-3 py-1 rounded-md border" style={{ borderColor: C.border, color: C.ink }}>
+                      {p.active ? "Désactiver" : "Activer"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -3805,6 +4156,7 @@ function Ventes({ db, persist, notify, session }) {
   const [client, setClient] = useState("");
   const [payment, setPayment] = useState("cash");
   const [discount, setDiscount] = useState("0");
+  const [pointsToUse, setPointsToUse] = useState("0");
   const [channel, setChannel] = useState("Boutique");
   const [scan, setScan] = useState("");
   const [pickingProduct, setPickingProduct] = useState(null);
@@ -3916,7 +4268,10 @@ function Ventes({ db, persist, notify, session }) {
 
   const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
   const discountAmount = Math.min(subtotal, (subtotal * (Number(discount) || 0)) / 100);
-  const total = subtotal - discountAmount;
+  const selectedClient = clientId ? db.clients.find((c) => c.id === clientId) : null;
+  const availablePoints = selectedClient ? selectedClient.loyaltyPoints || 0 : 0;
+  const pointsDiscount = Math.min(Number(pointsToUse) || 0, availablePoints, subtotal - discountAmount);
+  const total = subtotal - discountAmount - pointsDiscount;
   const tvaRate = (db.company && db.company.tvaRate) || 0;
   const totalHT = tvaRate ? total / (1 + tvaRate / 100) : total;
   const tvaAmount = total - totalHT;
@@ -3938,9 +4293,14 @@ function Ventes({ db, persist, notify, session }) {
     const clientName = client || "Client comptoir";
     let clients = [...db.clients];
     if (clientId) {
-      clients = clients.map((c) =>
-        c.id === clientId && payment === "credit" ? { ...c, balanceDue: (c.balanceDue || 0) + total } : c
-      );
+      const earnedPoints = Math.floor(total / 10); // 1 point par 10 DHS dépensés
+      clients = clients.map((c) => {
+        if (c.id !== clientId) return c;
+        let next = { ...c };
+        if (payment === "credit") next.balanceDue = (next.balanceDue || 0) + total;
+        next.loyaltyPoints = Math.max(0, (next.loyaltyPoints || 0) - pointsDiscount) + earnedPoints;
+        return next;
+      });
     }
 
     const soldBy = session ? session.userName : "—";
@@ -3972,7 +4332,7 @@ function Ventes({ db, persist, notify, session }) {
       invoices: [...db.invoices, invoice],
       nextInvoice: db.nextInvoice + 1,
     });
-    setCart([]); setClient(""); setClientId(""); setPayment("cash"); setDiscount("0"); setChannel("Boutique");
+    setCart([]); setClient(""); setClientId(""); setPayment("cash"); setDiscount("0"); setChannel("Boutique"); setPointsToUse("0");
     setLastReceipt({ ...sale, number: invoiceNumber });
     notify(`Vente enregistrée — facture ${invoiceNumber}`);
   };
@@ -4104,6 +4464,20 @@ function Ventes({ db, persist, notify, session }) {
           <Field label="Remise (%)">
             <input type="number" min="0" max="100" className={inputClass} style={{ ...inputStyle, marginBottom: 10 }} value={discount} onChange={(e) => setDiscount(e.target.value)} />
           </Field>
+          {selectedClient && availablePoints > 0 && (
+            <Field label={`Points fidélité à utiliser (${availablePoints} dispo.)`}>
+              <input
+                type="number"
+                min="0"
+                max={availablePoints}
+                className={inputClass}
+                style={{ ...inputStyle, marginBottom: 10 }}
+                value={pointsToUse}
+                onChange={(e) => setPointsToUse(e.target.value)}
+                placeholder="1 point = 1 DHS"
+              />
+            </Field>
+          )}
           <Field label="Paiement">
             <select className={inputClass} style={inputStyle} value={payment} onChange={(e) => setPayment(e.target.value)}>
               <option value="cash">Comptant (payé)</option>
@@ -4127,6 +4501,12 @@ function Ventes({ db, persist, notify, session }) {
             <div className="flex justify-between text-sm">
               <span style={{ color: C.inkSoft }}>Remise</span>
               <span style={{ ...monoFont, color: C.danger }}>−{fmt(discountAmount)} DHS</span>
+            </div>
+          )}
+          {pointsDiscount > 0 && (
+            <div className="flex justify-between text-sm">
+              <span style={{ color: C.inkSoft }}>Points fidélité ({pointsDiscount} pts)</span>
+              <span style={{ ...monoFont, color: C.danger }}>−{fmt(pointsDiscount)} DHS</span>
             </div>
           )}
           {tvaRate > 0 && (
@@ -4369,6 +4749,10 @@ function ClientDetail({ db, client, onBack, onWhatsapp }) {
           <div className="text-right">
             <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Solde dû</div>
             <div style={{ ...monoFont, color: (client.balanceDue || 0) > 0 ? C.danger : C.success }} className="text-lg">{fmt(client.balanceDue || 0)} DHS</div>
+          </div>
+          <div className="text-right">
+            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Points fidélité</div>
+            <div style={{ ...monoFont, color: C.accent }} className="text-lg">{client.loyaltyPoints || 0} pts</div>
           </div>
           {client.phone && (
             <button onClick={() => onWhatsapp(client)} className="p-2 rounded-md border" style={{ borderColor: C.border }} title="WhatsApp">
