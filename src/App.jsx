@@ -854,7 +854,7 @@ export default function App() {
       {/* Main */}
       <main className="flex-1 p-5 md:p-10 max-w-6xl">
         {tab === "dashboard" && <Dashboard db={db} session={session} />}
-        {tab === "aujourdhui" && <Aujourdhui db={db} setTab={setTab} />}
+        {tab === "aujourdhui" && <Aujourdhui db={db} setTab={setTab} session={session} />}
         {tab === "rapports" && <Rapports db={db} session={session} />}
         {tab === "devis" && <Devis db={db} persist={persist} notify={notify} log={log} session={session} />}
         {tab === "achats" && <Achats db={db} persist={persist} notify={notify} log={log} />}
@@ -2098,9 +2098,10 @@ function MarketplaceCalculator({ db, persist, notify }) {
 }
 
 // ---------- Aujourd'hui : vue unifiée des tâches du jour ----------
-function Aujourdhui({ db, setTab }) {
+function Aujourdhui({ db, setTab, session }) {
   const todayStr = today();
   const daysUntil = (d) => Math.floor((new Date(d) - new Date(todayStr)) / 86400000);
+  const isAdmin = session && session.role === "admin";
 
   const colisEnCours = db.deliveryNotes.filter((b) => {
     const statuses = b.items.map((i) => i.status || b.status || "attente");
@@ -2119,10 +2120,12 @@ function Aujourdhui({ db, setTab }) {
 
   const rupture = db.products.filter((p) => productQty(p) <= 0);
 
-  const chargesToRemind = (db.recurringCharges || [])
-    .map((c) => ({ ...c, days: daysUntil(c.nextDueDate) }))
-    .filter((c) => c.days <= 5)
-    .sort((a, b) => a.days - b.days);
+  const chargesToRemind = isAdmin
+    ? (db.recurringCharges || [])
+        .map((c) => ({ ...c, days: daysUntil(c.nextDueDate) }))
+        .filter((c) => c.days <= 5)
+        .sort((a, b) => a.days - b.days)
+    : [];
 
   const sections = [
     {
@@ -2141,14 +2144,18 @@ function Aujourdhui({ db, setTab }) {
       empty: "Aucune échéance de chèque dans les 7 prochains jours.",
       items: echeances.slice(0, 6).map((e) => ({ label: e.label, sub: `${fmt(e.amount)} DHS · ${e.days < 0 ? `en retard (${Math.abs(e.days)} j)` : e.days === 0 ? "aujourd'hui" : `dans ${e.days} j`}` })),
     },
-    {
-      title: "Charges à payer",
-      icon: PackagePlus,
-      count: chargesToRemind.length,
-      tab: "charges",
-      empty: "Aucune charge récurrente à payer bientôt.",
-      items: chargesToRemind.slice(0, 6).map((c) => ({ label: c.label, sub: `${fmt(c.amount)} DHS · ${c.days < 0 ? `en retard (${Math.abs(c.days)} j)` : c.days === 0 ? "aujourd'hui" : `dans ${c.days} j`}` })),
-    },
+    ...(isAdmin
+      ? [
+          {
+            title: "Charges à payer",
+            icon: PackagePlus,
+            count: chargesToRemind.length,
+            tab: "charges",
+            empty: "Aucune charge récurrente à payer bientôt.",
+            items: chargesToRemind.slice(0, 6).map((c) => ({ label: c.label, sub: `${fmt(c.amount)} DHS · ${c.days < 0 ? `en retard (${Math.abs(c.days)} j)` : c.days === 0 ? "aujourd'hui" : `dans ${c.days} j`}` })),
+          },
+        ]
+      : []),
     {
       title: "Clients à relancer",
       icon: MessageCircle,
