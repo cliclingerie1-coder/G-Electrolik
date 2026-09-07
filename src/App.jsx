@@ -273,9 +273,9 @@ function todayISO() {
 }
 
 async function sbSaveBackup(session, db) {
-  if (!session) return;
+  if (!session) return { ok: false, error: "no-session" };
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/backups?on_conflict=backup_date`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/backups?on_conflict=backup_date`, {
       method: "POST",
       headers: {
         apikey: SUPABASE_KEY,
@@ -290,8 +290,15 @@ async function sbSaveBackup(session, db) {
         updated_at: new Date().toISOString(),
       }),
     });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => "");
+      console.error("Backup error", res.status, errText);
+      return { ok: false, error: errText || `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch (e) {
     console.error("Backup error", e);
+    return { ok: false, error: e.message };
   }
 }
 
@@ -674,19 +681,98 @@ export default function App() {
     dbRef.current = db;
   }, [db]);
 
+  // ---------- Synchronisation robuste (file d'attente + retry + détection online/offline) ----------
+  // Le localStorage sert de cache local instantané (toujours écrit en premier, jamais perdu).
+  // Le "pending flag" indique qu'une sauvegarde cloud est due mais pas encore confirmée.
+  const [syncStatus, setSyncStatus] = useState("synced"); // "synced" | "pending" | "syncing" | "offline" | "error"
+  const syncingRef = useRef(false); // évite deux tentatives de sync en parallèle
+
+  const markPending = () => {
+    try {
+      localStorage.setItem("ek-sync-pending", "1");
+    } catch (e) {}
+  };
+  const clearPending = () => {
+    try {
+      localStorage.removeItem("ek-sync-pending");
+    } catch (e) {}
+  };
+  const hasPending = () => {
+    try {
+      return localStorage.getItem("ek-sync-pending") === "1";
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Tente d'envoyer l'état actuel vers Supabase, avec re-essais automatiques (backoff) tant que ça échoue
+  const attemptSync = async (attempt = 0) => {
+    if (!session || syncingRef.current) return;
+    if (!navigator.onLine) {
+      setSyncStatus("offline");
+      return;
+    }
+    syncingRef.current = true;
+    setSyncStatus("syncing");
+    const next = dbRef.current;
+    const [backupResult] = await Promise.all([
+      sbSaveBackup(session, next),
+      sbSyncPublicProducts(session, next.products, next.sales),
+    ]);
+    syncingRef.current = false;
+
+    if (backupResult.ok) {
+      clearPending();
+      setSyncStatus("synced");
+    } else {
+      // Échec réseau ou serveur : on garde la donnée en attente et on réessaie avec un délai croissant
+      // (2s, 4s, 8s… plafonné à 30s), sans jamais perdre les données locales (déjà en localStorage).
+      setSyncStatus(navigator.onLine ? "error" : "offline");
+      const delay = Math.min(30000, 2000 * Math.pow(2, attempt));
+      setTimeout(() => attemptSync(attempt + 1), delay);
+    }
+  };
+
   const persist = async (next) => {
     setDb(next);
     lastKnownTimestampRef.current = new Date().toISOString(); // notre propre changement est forcément le plus récent
     try {
+      // Le cache local est écrit de façon synchrone : la saisie n'est JAMAIS perdue,
+      // même si le réseau tombe juste après ce clic.
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     } catch (e) {
       console.error("Storage error", e);
     }
     if (session) {
-      sbSaveBackup(session, next); // sauvegarde cloud automatique, en arrière-plan
-      sbSyncPublicProducts(session, next.products, next.sales); // maintient le catalogue du site à jour
+      markPending();
+      attemptSync();
     }
   };
+
+  // Dès que la connexion revient, on vide immédiatement la file d'attente
+  useEffect(() => {
+    const onOnline = () => {
+      if (hasPending()) attemptSync();
+    };
+    const onOffline = () => setSyncStatus("offline");
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, [session]);
+
+  // Filet de sécurité : si une sauvegarde reste en attente (ex: app rouverte après une coupure),
+  // on retente périodiquement jusqu'à confirmation.
+  useEffect(() => {
+    if (!session) return;
+    if (hasPending()) attemptSync();
+    const t = setInterval(() => {
+      if (hasPending() && navigator.onLine) attemptSync();
+    }, 15000);
+    return () => clearInterval(t);
+  }, [session]);
 
   // Synchronisation automatique : vérifie toutes les 20s si un autre appareil a mis à jour les données
   useEffect(() => {
@@ -829,6 +915,22 @@ export default function App() {
           })}
         </nav>
         <div className="p-4 md:border-t hidden md:block" style={{ borderColor: C.sidebarAlt }}>
+          <div className="flex items-center gap-2 mb-3 text-[11px]" style={{ color: C.sidebarText }}>
+            <span
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{
+                background:
+                  syncStatus === "synced" ? C.success :
+                  syncStatus === "syncing" ? C.accent :
+                  syncStatus === "offline" ? C.inkSoft : C.danger,
+              }}
+            />
+            {syncStatus === "synced" && "Synchronisé"}
+            {syncStatus === "syncing" && "Synchronisation…"}
+            {syncStatus === "pending" && "En attente…"}
+            {syncStatus === "offline" && "Hors ligne — sera synchronisé au retour du réseau"}
+            {syncStatus === "error" && "Erreur de synchronisation — nouvelle tentative…"}
+          </div>
           <div className="flex items-center justify-between">
             <div>
               <div style={{ color: "#fff" }} className="text-sm">{session.userName}</div>
@@ -2904,54 +3006,64 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
     setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
   };
 
-  const addProduct = () => {
-    if (!form.name || !form.price) return notify("Nom et prix requis");
+  const [savingProduct, setSavingProduct] = useState(false);
+
+  const addProduct = async () => {
+    if (!form.name.trim()) return notify("Le nom du produit est requis");
+    if (!form.price || Number(form.price) <= 0) return notify("Le prix de vente doit être supérieur à 0");
+    if (form.costPrice && Number(form.costPrice) < 0) return notify("Le coût d'achat ne peut pas être négatif");
+    if (form.qty && Number(form.qty) < 0) return notify("La quantité ne peut pas être négative");
     const images = form.images || [];
 
-    if (editingId) {
-      const before = db.products.find((p) => p.id === editingId);
-      const priceChanged = Number(form.price) !== before.price;
-      const updated = {
-        ...before,
-        name: form.name,
-        sku: form.sku || before.sku,
-        barcode: form.barcode || before.barcode,
-        category: form.category || "Général",
-        price: Number(form.price),
-        costPrice: Number(form.costPrice) || 0,
-        qty: before.variants && before.variants.length > 0 ? before.qty : Number(form.qty) || 0,
-        minQty: Number(form.minQty) || 0,
-        image: images[0] || "",
-        images,
-        priceHistory: priceChanged
-          ? [...(before.priceHistory || []), { date: today(), price: before.price, costPrice: before.costPrice || 0 }]
-          : before.priceHistory || [],
-      };
-      persist({ ...db, products: db.products.map((p) => (p.id === editingId ? updated : p)) });
-      if (log) log("update_product", "products", editingId, { name: updated.name });
-      cancelEdit();
-      notify("Produit modifié");
-      return;
+    setSavingProduct(true);
+    try {
+      if (editingId) {
+        const before = db.products.find((p) => p.id === editingId);
+        const priceChanged = Number(form.price) !== before.price;
+        const updated = {
+          ...before,
+          name: form.name,
+          sku: form.sku || before.sku,
+          barcode: form.barcode || before.barcode,
+          category: form.category || "Général",
+          price: Number(form.price),
+          costPrice: Number(form.costPrice) || 0,
+          qty: before.variants && before.variants.length > 0 ? before.qty : Number(form.qty) || 0,
+          minQty: Number(form.minQty) || 0,
+          image: images[0] || "",
+          images,
+          priceHistory: priceChanged
+            ? [...(before.priceHistory || []), { date: today(), price: before.price, costPrice: before.costPrice || 0 }]
+            : before.priceHistory || [],
+        };
+        await persist({ ...db, products: db.products.map((p) => (p.id === editingId ? updated : p)) });
+        if (log) log("update_product", "products", editingId, { name: updated.name });
+        cancelEdit();
+        notify(`✅ Produit "${updated.name}" modifié`);
+      } else {
+        const p = {
+          id: uid(),
+          name: form.name,
+          sku: form.sku || "SKU-" + uid().toUpperCase().slice(0, 5),
+          barcode: form.barcode || uidBarcode(),
+          category: form.category || "Général",
+          price: Number(form.price),
+          costPrice: Number(form.costPrice) || 0,
+          qty: Number(form.qty) || 0,
+          minQty: Number(form.minQty) || 0,
+          image: images[0] || "",
+          images,
+          priceHistory: [],
+          variants: [],
+        };
+        await persist({ ...db, products: [...db.products, p] });
+        setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
+        notify(`✅ Produit "${p.name}" ajouté`);
+      }
+    } catch (e) {
+      notify("❌ Échec de l'enregistrement — réessayez");
     }
-
-    const p = {
-      id: uid(),
-      name: form.name,
-      sku: form.sku || "SKU-" + uid().toUpperCase().slice(0, 5),
-      barcode: form.barcode || uidBarcode(),
-      category: form.category || "Général",
-      price: Number(form.price),
-      costPrice: Number(form.costPrice) || 0,
-      qty: Number(form.qty) || 0,
-      minQty: Number(form.minQty) || 0,
-      image: images[0] || "",
-      images,
-      priceHistory: [],
-      variants: [],
-    };
-    persist({ ...db, products: [...db.products, p] });
-    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
-    notify("Produit ajouté");
+    setSavingProduct(false);
   };
 
   const addVariant = (product) => {
@@ -3193,8 +3305,21 @@ function Stock({ db, persist, notify, log, session, initialQuery }) {
           </Field>
         </div>
         <div className="flex gap-3 mt-4">
-          <button onClick={addProduct} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-            {editingId ? <Save size={14} /> : <Plus size={14} />} {editingId ? "Enregistrer les modifications" : "Ajouter au catalogue"}
+          <button
+            onClick={addProduct}
+            disabled={savingProduct}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white disabled:opacity-60"
+            style={{ background: C.accent }}
+          >
+            {savingProduct ? (
+              <>
+                <RotateCcw size={14} className="animate-spin" /> Enregistrement…
+              </>
+            ) : (
+              <>
+                {editingId ? <Save size={14} /> : <Plus size={14} />} {editingId ? "Enregistrer les modifications" : "Ajouter au catalogue"}
+              </>
+            )}
           </button>
           {editingId && (
             <button onClick={cancelEdit} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.inkSoft }}>
@@ -3774,12 +3899,19 @@ function Achats({ db, persist, notify, log }) {
     reader.readAsArrayBuffer(file);
   };
 
-  const submit = () => {
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
     const supplierLabel = form.supplierId
       ? db.suppliers.find((s) => s.id === form.supplierId)?.name
       : form.supplierName;
     if (!supplierLabel || !form.qty || !form.unitCost) return notify("Fournisseur, quantité et coût requis");
+    if (Number(form.qty) <= 0) return notify("La quantité doit être supérieure à 0");
+    if (Number(form.unitCost) <= 0) return notify("Le coût unitaire doit être supérieur à 0");
     if (needsVariant && !form.variantId) return notify("Choisissez la variante à réapprovisionner");
+    if (!useExisting && !form.newName.trim()) return notify("Nom du nouveau produit requis");
+
+    setSaving(true);
     let products = [...db.products];
     let productName = "";
     const qty = Number(form.qty);
@@ -3788,7 +3920,10 @@ function Achats({ db, persist, notify, log }) {
 
     if (useExisting) {
       const idx = products.findIndex((p) => p.id === form.productId);
-      if (idx === -1) return notify("Produit introuvable");
+      if (idx === -1) {
+        setSaving(false);
+        return notify("Produit introuvable");
+      }
       products = adjustStock(products, form.productId, needsVariant ? form.variantId : null, qty);
       products = products.map((p) =>
         p.id === form.productId
@@ -3803,7 +3938,6 @@ function Achats({ db, persist, notify, log }) {
         productName += ` — ${variantLabel(v)}`;
       }
     } else {
-      if (!form.newName) return notify("Nom du nouveau produit requis");
       const p = { id: uid(), name: form.newName, sku: "SKU-" + uid().toUpperCase().slice(0, 5), barcode: uidBarcode(), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5, variants: [] };
       products.push(p);
       productName = p.name;
@@ -3821,9 +3955,14 @@ function Achats({ db, persist, notify, log }) {
     }
 
     const purchase = { id: uid(), date: today(), productName, supplier: supplierLabel, supplierId, qty, unitCost, total, payment: form.payment };
-    persist({ ...db, products, suppliers, purchases: [...db.purchases, purchase] });
-    setForm({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
-    notify("Achat enregistré, stock mis à jour");
+    try {
+      await persist({ ...db, products, suppliers, purchases: [...db.purchases, purchase] });
+      setForm({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
+      notify(`✅ Achat enregistré — stock mis à jour (${productName})`);
+    } catch (e) {
+      notify("❌ Échec de l'enregistrement — réessayez");
+    }
+    setSaving(false);
   };
 
   return (
@@ -4061,8 +4200,21 @@ function Achats({ db, persist, notify, log }) {
             </select>
           </Field>
         </div>
-        <button onClick={submit} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <PackagePlus size={14} /> Enregistrer l'achat
+        <button
+          onClick={submit}
+          disabled={saving}
+          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white disabled:opacity-60"
+          style={{ background: C.accent }}
+        >
+          {saving ? (
+            <>
+              <RotateCcw size={14} className="animate-spin" /> Enregistrement…
+            </>
+          ) : (
+            <>
+              <PackagePlus size={14} /> Enregistrer l'achat
+            </>
+          )}
         </button>
       </div>
 
