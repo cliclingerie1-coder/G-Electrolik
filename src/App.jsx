@@ -686,6 +686,9 @@ export default function App() {
   // Le "pending flag" indique qu'une sauvegarde cloud est due mais pas encore confirmée.
   const [syncStatus, setSyncStatus] = useState("synced"); // "synced" | "pending" | "syncing" | "offline" | "error"
   const syncingRef = useRef(false); // évite deux tentatives de sync en parallèle
+  // Toujours mis à jour de façon SYNCHRONE dans persist() (contrairement à dbRef, qui passe par un
+  // useEffect et peut donc être encore périmé au moment où attemptSync() démarre juste après).
+  const latestDbRef = useRef(db);
 
   const markPending = () => {
     try {
@@ -714,7 +717,7 @@ export default function App() {
     }
     syncingRef.current = true;
     setSyncStatus("syncing");
-    const next = dbRef.current;
+    const next = latestDbRef.current; // snapshot exact au moment de l'envoi
     const [backupResult] = await Promise.all([
       sbSaveBackup(session, next),
       sbSyncPublicProducts(session, next.products, next.sales),
@@ -722,8 +725,15 @@ export default function App() {
     syncingRef.current = false;
 
     if (backupResult.ok) {
-      clearPending();
-      setSyncStatus("synced");
+      if (latestDbRef.current === next) {
+        // Rien n'a changé pendant l'envoi : c'est bien synchronisé
+        clearPending();
+        setSyncStatus("synced");
+      } else {
+        // D'autres modifications sont arrivées pendant l'envoi (ex: ajout rapide de plusieurs
+        // produits) — on relance immédiatement une synchronisation pour ne rien perdre.
+        attemptSync();
+      }
     } else {
       // Échec réseau ou serveur : on garde la donnée en attente et on réessaie avec un délai croissant
       // (2s, 4s, 8s… plafonné à 30s), sans jamais perdre les données locales (déjà en localStorage).
@@ -735,6 +745,7 @@ export default function App() {
 
   const persist = async (next) => {
     setDb(next);
+    latestDbRef.current = next; // synchrone : toujours à jour, même si le useEffect de dbRef n'a pas encore tourné
     lastKnownTimestampRef.current = new Date().toISOString(); // notre propre changement est forcément le plus récent
     try {
       // Le cache local est écrit de façon synchrone : la saisie n'est JAMAIS perdue,
