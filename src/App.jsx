@@ -555,6 +555,27 @@ export default function App() {
   const [deepLinkQuery, setDeepLinkQuery] = useState("");
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("ek-notif-enabled") === "1");
 
+  const [locked, setLocked] = useState(false);
+  const [unlockInput, setUnlockInput] = useState("");
+  const [unlockError, setUnlockError] = useState(false);
+  const getLockPin = () => {
+    try {
+      return localStorage.getItem("ek-lock-pin") || "";
+    } catch (e) {
+      return "";
+    }
+  };
+  const tryUnlock = () => {
+    if (unlockInput === getLockPin()) {
+      setLocked(false);
+      setUnlockInput("");
+      setUnlockError(false);
+    } else {
+      setUnlockError(true);
+      setUnlockInput("");
+    }
+  };
+
   const toggleNotifications = async () => {
     if (!("Notification" in window)) return;
     if (!notifEnabled) {
@@ -950,6 +971,11 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {getLockPin() && (
+                <button onClick={() => setLocked(true)} title="Verrouiller l'écran">
+                  <Lock size={16} color={C.sidebarText} />
+                </button>
+              )}
               <button onClick={toggleNotifications} title={notifEnabled ? "Désactiver les notifications" : "Activer les notifications"}>
                 <Bell size={16} color={notifEnabled ? C.accent : C.sidebarText} />
               </button>
@@ -991,6 +1017,37 @@ export default function App() {
       </main>
 
       {searchOpen && <GlobalSearch db={db} onSelect={handleSearchSelect} onClose={() => setSearchOpen(false)} />}
+
+      {locked && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: C.sidebar }}>
+          <div className="w-full max-w-xs text-center">
+            <img src="/logo.png" alt="Electrolik" style={{ width: 140, height: "auto", margin: "0 auto 24px" }} />
+            <div style={{ ...monoFont, color: C.sidebarText, fontSize: 11 }} className="uppercase tracking-widest mb-4">
+              Écran verrouillé — entrez le code
+            </div>
+            <input
+              type="password"
+              inputMode="numeric"
+              maxLength={4}
+              autoFocus
+              value={unlockInput}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "").slice(0, 4);
+                setUnlockInput(v);
+                setUnlockError(false);
+                if (v.length === 4) setTimeout(() => tryUnlock(), 50);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && tryUnlock()}
+              className="w-full text-center text-2xl py-3 rounded-md outline-none mb-3"
+              style={{ letterSpacing: "0.6em", background: C.sidebarAlt, color: "#fff", border: `1px solid ${unlockError ? C.danger : C.sidebarAlt}` }}
+            />
+            {unlockError && <p className="text-xs mb-3" style={{ color: C.danger }}>Code incorrect</p>}
+            <button onClick={() => setSession(null)} className="text-xs" style={{ color: C.sidebarText }}>
+              Se déconnecter à la place
+            </button>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div
@@ -5810,6 +5867,40 @@ function Livraison({ db, persist, notify, log }) {
   // Statut d'un article : utilise son propre statut, ou celui (ancien) du colis pour les colis créés avant cette mise à jour
   const itemStatus = (bl, item) => item.status || bl.status || "attente";
 
+  const printColisLabel = async (bl, client) => {
+    const dataUrl = await QRCode.toDataURL(bl.number, { width: 200, margin: 1 });
+    const html = `
+      <html>
+        <head>
+          <title>Étiquette — ${bl.number}</title>
+          <style>
+            body { font-family: Inter, sans-serif; padding: 20px; max-width: 380px; margin: auto; }
+            .box { border: 2px solid #14161B; border-radius: 8px; padding: 16px; }
+            .num { font-family: monospace; font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 10px; }
+            .qr { text-align: center; margin-bottom: 12px; }
+            .row { margin-bottom: 6px; font-size: 13px; }
+            .label { text-transform: uppercase; font-size: 10px; color: #666; letter-spacing: 0.08em; }
+            .cod { text-align: center; font-size: 22px; font-weight: bold; margin-top: 10px; border-top: 1px dashed #999; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="box">
+            <div class="num">${bl.number}</div>
+            <div class="qr"><img src="${dataUrl}" width="160" height="160" /></div>
+            <div class="row"><div class="label">Destinataire</div>${bl.client}</div>
+            ${client && client.phone ? `<div class="row"><div class="label">Téléphone</div>${client.phone}</div>` : ""}
+            <div class="row"><div class="label">Contenu</div>${bl.items.map((i) => `${i.name} ×${i.qty}`).join(", ")}</div>
+            <div class="cod">${fmt(bl.montant || 0)} DHS</div>
+          </div>
+        </body>
+      </html>`;
+    const w = window.open("", "_blank", "width=420,height=560");
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
+
   const colisOverallStatus = (bl) => {
     const statuses = bl.items.map((i) => itemStatus(bl, i));
     if (statuses.every((s) => s === "livre")) return "livre";
@@ -5979,6 +6070,14 @@ function Livraison({ db, persist, notify, log }) {
                     labels={["LIVRÉ", "EN ATTENTE"]}
                   />
                 )}
+                <button
+                  onClick={() => printColisLabel(b, c)}
+                  title="Imprimer l'étiquette d'expédition"
+                  className="text-xs px-2.5 py-1.5 rounded-md border flex items-center gap-1"
+                  style={{ borderColor: C.border, color: C.inkSoft }}
+                >
+                  <Printer size={12} /> Étiquette
+                </button>
               </div>
 
               <div className="space-y-1.5 border-t pt-3" style={{ borderColor: C.border }}>
@@ -6345,6 +6444,76 @@ function Charges({ db, persist, notify, log }) {
 }
 
 // ---------- Finance / Comptabilité ----------
+function printBilanAnnuel({ db, company, totalRevenue, totalCosts, totalCharges, cashProfit, stockValueAtCost, stockValue, currentCapital, years }) {
+  const creances = db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0);
+  const dettes = db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0);
+  const yearsRows = years
+    .map(
+      (y) => `<tr>
+        <td style="padding:6px 0;">${y.year}</td>
+        <td style="padding:6px 0;text-align:right;">${fmt(y.revenue)} DHS</td>
+        <td style="padding:6px 0;text-align:right;">${fmt(y.costs)} DHS</td>
+        <td style="padding:6px 0;text-align:right;color:${y.profit >= 0 ? "#1FA97A" : "#E5484D"};">${fmt(y.profit)} DHS</td>
+      </tr>`
+    )
+    .join("");
+
+  const html = `
+    <html>
+      <head>
+        <title>Bilan annuel — ${company.name || "Electrolik"}</title>
+        <style>
+          body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 760px; margin: auto; }
+          h1 { font-style: italic; margin-bottom: 0; }
+          .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 28px; margin-bottom: 10px; }
+          table { width: 100%; border-collapse: collapse; }
+          th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
+          th:nth-child(2), th:nth-child(3), th:nth-child(4) { text-align: right; }
+          td { border-bottom: 1px solid #EEE; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
+          .card { border: 1px solid #E4E6EB; border-radius: 8px; padding: 14px 16px; }
+          .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6274; }
+          .card .value { font-size: 20px; font-style: italic; margin-top: 4px; }
+        </style>
+      </head>
+      <body>
+        <h1>${company.name || "Electrolik"}</h1>
+        <div class="muted">Bilan annuel — Généré le ${today()}</div>
+        <p style="font-size:13px; color:#5B6274;">
+          ICE : ${company.ice || "—"} · RC : ${company.rc || "—"} · Patente : ${company.patente || "—"}<br/>
+          ${company.address || ""}${company.phone ? " · " + company.phone : ""}
+        </p>
+
+        <div class="muted">Résultat global (toutes années confondues)</div>
+        <div class="grid">
+          <div class="card"><div class="label">Chiffre d'affaires total</div><div class="value">${fmt(totalRevenue)} DHS</div></div>
+          <div class="card"><div class="label">Achats / coûts totaux</div><div class="value">${fmt(totalCosts)} DHS</div></div>
+          <div class="card"><div class="label">Charges totales</div><div class="value">${fmt(totalCharges)} DHS</div></div>
+          <div class="card"><div class="label">Bénéfice net</div><div class="value" style="color:${cashProfit >= 0 ? "#1FA97A" : "#E5484D"};">${fmt(cashProfit)} DHS</div></div>
+          <div class="card"><div class="label">Stock (au coût)</div><div class="value">${fmt(stockValueAtCost)} DHS</div></div>
+          <div class="card"><div class="label">Stock (valeur de revente)</div><div class="value">${fmt(stockValue)} DHS</div></div>
+          <div class="card"><div class="label">Créances clients</div><div class="value">${fmt(creances)} DHS</div></div>
+          <div class="card"><div class="label">Dettes fournisseurs</div><div class="value">${fmt(dettes)} DHS</div></div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="label">Capital actuel (patrimoine total)</div>
+          <div class="value" style="font-size:26px;">${fmt(currentCapital)} DHS</div>
+        </div>
+
+        <div class="muted">Détail par année</div>
+        <table>
+          <thead><tr><th>Année</th><th>Chiffre d'affaires</th><th>Achats / coûts</th><th>Bénéfice</th></tr></thead>
+          <tbody>${yearsRows || `<tr><td colspan="4" style="padding:12px 0;color:#5B6274;">Aucune donnée.</td></tr>`}</tbody>
+        </table>
+      </body>
+    </html>`;
+  const w = window.open("", "_blank");
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 300);
+}
+
 function Finance({ db, persist, notify, log, session }) {
   const [capitalInput, setCapitalInput] = useState(String(db.capital || 0));
   const [backups, setBackups] = useState([]);
@@ -6358,6 +6527,33 @@ function Finance({ db, persist, notify, log, session }) {
       return [];
     }
   });
+
+  const [lockPin, setLockPin] = useState(() => {
+    try {
+      return localStorage.getItem("ek-lock-pin") || "";
+    } catch (e) {
+      return "";
+    }
+  });
+  const [lockPinInput, setLockPinInput] = useState("");
+
+  const saveLockPin = () => {
+    if (lockPinInput.length !== 4 || !/^\d{4}$/.test(lockPinInput)) return notify("Le code doit être composé de 4 chiffres");
+    try {
+      localStorage.setItem("ek-lock-pin", lockPinInput);
+    } catch (e) {}
+    setLockPin(lockPinInput);
+    setLockPinInput("");
+    notify("Code de verrouillage enregistré sur cet appareil");
+  };
+
+  const removeLockPin = () => {
+    try {
+      localStorage.removeItem("ek-lock-pin");
+    } catch (e) {}
+    setLockPin("");
+    notify("Verrouillage rapide désactivé");
+  };
 
   const saveRestorePoint = () => {
     const now = new Date();
@@ -6438,6 +6634,65 @@ function Finance({ db, persist, notify, log, session }) {
   const stockValueAtCost = db.products.reduce((s, p) => s + (p.costPrice || 0) * productQty(p), 0); // valeur au coût d'achat
   const cashProfit = totalRevenue - totalCosts - totalCharges; // bénéfice réel : ventes moins achats moins charges (loyer, salaires...)
   const currentCapital = (db.capital || 0) + cashProfit + stockValueAtCost; // patrimoine total : capital de départ + bénéfice encaissé + valeur de la marchandise encore en stock (au coût)
+
+  const printBilanAnnuel = () => {
+    const companyInfo = db.company || {};
+    const year = new Date().getFullYear();
+    const creances = (db.clients || []).reduce((s, c) => s + (c.balanceDue || 0), 0);
+    const dettesFournisseurs = (db.suppliers || []).reduce((s, x) => s + (x.balanceDue || 0), 0);
+    const html = `
+      <html>
+        <head>
+          <title>Bilan annuel ${year}</title>
+          <style>
+            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 720px; margin: auto; }
+            h1 { font-style: italic; margin-bottom: 0; }
+            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 24px; margin-bottom: 8px; }
+            table { width: 100%; border-collapse: collapse; }
+            td { padding: 6px 0; border-bottom: 1px solid #EEE; }
+            td:last-child { text-align: right; font-family: monospace; }
+            .total { display: flex; justify-content: space-between; margin-top: 16px; font-size: 22px; font-style: italic; border-top: 2px solid #161B26; padding-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <h1>${companyInfo.name || "Electrolik"}</h1>
+          <div class="muted">Bilan annuel — ${year}</div>
+          ${companyInfo.ice ? `<p style="font-size:12px;color:#5B6274;">ICE: ${companyInfo.ice} ${companyInfo.rc ? " · RC: " + companyInfo.rc : ""}</p>` : ""}
+
+          <div class="muted">Actif</div>
+          <table>
+            <tr><td>Stock (valeur au coût d'achat)</td><td>${fmt(stockValueAtCost)} DHS</td></tr>
+            <tr><td>Créances clients (soldes dus)</td><td>${fmt(creances)} DHS</td></tr>
+          </table>
+
+          <div class="muted">Passif</div>
+          <table>
+            <tr><td>Dettes fournisseurs (soldes dus)</td><td>${fmt(dettesFournisseurs)} DHS</td></tr>
+          </table>
+
+          <div class="muted">Résultat de l'exercice</div>
+          <table>
+            <tr><td>Chiffre d'affaires (ventes)</td><td>${fmt(totalRevenue)} DHS</td></tr>
+            <tr><td>Coût des achats</td><td>−${fmt(totalCosts)} DHS</td></tr>
+            <tr><td>Charges (loyer, salaires, etc.)</td><td>−${fmt(totalCharges)} DHS</td></tr>
+            <tr><td><b>Bénéfice net</b></td><td><b>${fmt(cashProfit)} DHS</b></td></tr>
+          </table>
+
+          <div class="total">
+            <span>Patrimoine total (capital actuel)</span>
+            <span>${fmt(currentCapital)} DHS</span>
+          </div>
+          <p style="font-size:11px;color:#5B6274;margin-top:6px;">
+            Capital initial (${fmt(db.capital || 0)} DHS) + bénéfice net + valeur du stock au coût.
+          </p>
+        </body>
+      </html>`;
+    const w = window.open("", "_blank");
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 300);
+  };
 
   // group by year
   const years = useMemo(() => {
@@ -6522,6 +6777,46 @@ function Finance({ db, persist, notify, log, session }) {
         </p>
       </div>
 
+      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
+          <Lock size={14} /> Verrouillage rapide (code PIN)
+        </div>
+        <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
+          Utile si plusieurs personnes utilisent le même appareil au comptoir : verrouille l'écran sans devoir se déconnecter complètement. Le code est propre à cet appareil.
+        </p>
+        {lockPin ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm" style={{ color: C.success }}>✓ Verrouillage activé sur cet appareil</span>
+            <button onClick={removeLockPin} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
+              Désactiver
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-end gap-3">
+            <Field label="Code à 4 chiffres">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                className={inputClass}
+                style={{ ...inputStyle, width: 140, letterSpacing: "0.3em" }}
+                value={lockPinInput}
+                onChange={(e) => setLockPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              />
+            </Field>
+            <button onClick={saveLockPin} className="px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
+              Activer
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-between items-center mb-3">
+        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">Bilan de l'entreprise</div>
+        <button onClick={printBilanAnnuel} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.ink }}>
+          <Printer size={13} /> Bilan annuel (PDF)
+        </button>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
         <StatCard label="Capital initial" value={fmt(db.capital || 0) + " DHS"} icon={Wallet} />
         <StatCard label="Charges" value={fmt(totalCharges) + " DHS"} icon={Receipt} tone={totalCharges > 0 ? "danger" : "default"} />
@@ -6550,8 +6845,15 @@ function Finance({ db, persist, notify, log, session }) {
       </div>
 
       <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div className="px-4 py-3 border-b" style={{ ...monoFont, fontSize: 11, color: C.inkSoft, borderColor: C.border }} >
-          BILAN ANNUEL
+        <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: C.border }}>
+          <span style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>BILAN ANNUEL</span>
+          <button
+            onClick={() => printBilanAnnuel({ db, company, totalRevenue, totalCosts, totalCharges, cashProfit, stockValueAtCost, stockValue, currentCapital, years })}
+            className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border"
+            style={{ borderColor: C.border, color: C.inkSoft }}
+          >
+            <Printer size={12} /> Télécharger le bilan (PDF)
+          </button>
         </div>
         <table className="w-full text-sm">
           <thead>
