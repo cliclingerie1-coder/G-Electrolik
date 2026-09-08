@@ -1433,10 +1433,14 @@ function Dashboard({ db, session }) {
   return (
     <div>
       <SectionTitle eyebrow="Vue d'ensemble" title="Tableau de bord" />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-        <StatCard label="Chiffre d'affaires" value={fmt(revenue) + " DHS"} icon={TrendingUp} />
-        <StatCard label="Marge brute" value={fmt(grossMargin) + " DHS"} icon={PiggyBank} tone={grossMargin >= 0 ? "success" : "danger"} />
-        <StatCard label="Valeur du stock (coût)" value={fmt(stockValue) + " DHS"} icon={Boxes} />
+      <div className={`grid grid-cols-2 gap-4 mb-8 ${isVendeur ? "md:grid-cols-2" : "md:grid-cols-5"}`}>
+        {!isVendeur && (
+          <>
+            <StatCard label="Chiffre d'affaires" value={fmt(revenue) + " DHS"} icon={TrendingUp} />
+            <StatCard label="Marge brute" value={fmt(grossMargin) + " DHS"} icon={PiggyBank} tone={grossMargin >= 0 ? "success" : "danger"} />
+            <StatCard label="Valeur du stock (coût)" value={fmt(stockValue) + " DHS"} icon={Boxes} />
+          </>
+        )}
         <StatCard label="Ruptures de stock" value={rupture.length} icon={AlertTriangle} tone={rupture.length ? "danger" : "success"} />
         <StatCard label="Stock bas" value={lowStock.length} icon={AlertTriangle} tone={lowStock.length ? "danger" : "success"} />
       </div>
