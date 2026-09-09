@@ -5,7 +5,7 @@ import {
   CheckCircle2, Clock, Minus, ChevronRight, Wallet, PiggyBank, Save,
   Users, Truck, Landmark, Download, Upload, Phone, LogOut, ShieldCheck, Lock, Printer,
   FileText, ClipboardList, UserCog, Barcode, BarChart3, Receipt as Receipt2, RotateCcw, Settings, Pencil, Layers,
-  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise, Bell, Globe, Star, Tag
+  Image as ImageIcon, Camera, Sun, Moon, MessageCircle, TrendingDown, AlertCircle, ClipboardCheck, Calculator, QrCode, Sunrise, Bell, Globe, Star, Tag, Check, Filter
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, BarChart, Bar,
@@ -18,41 +18,40 @@ import JsBarcode from "jsbarcode";
 import QRCode from "qrcode";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
 
-// ---- Design tokens : identité Electrolik (noir / or, typographie tech) ----
+// ---- Design tokens : identité Electrolik Premium ----
 const LIGHT_THEME = {
-  ink: "#14161B",
-  inkSoft: "#6B7280",
-  paper: "#F4F5F7",
+  ink: "#0F172A",
+  inkSoft: "#64748B",
+  paper: "#F8FAFC",
   paperCard: "#FFFFFF",
-  sidebar: "#0C0D10",
-  sidebarAlt: "#1C1D22",
-  sidebarText: "#9CA3AF",
+  sidebar: "#090D16",
+  sidebarAlt: "#131B2E",
+  sidebarText: "#94A3B8",
   accent: "#F2B705",
-  accentSoft: "#FDF1CC",
-  success: "#1FA97A",
-  successSoft: "#DCF5EB",
-  danger: "#E5484D",
-  dangerSoft: "#FBE3E4",
-  border: "#E4E6EB",
+  accentSoft: "#FEF9C3",
+  success: "#10B981",
+  successSoft: "#D1FAE5",
+  danger: "#EF4444",
+  dangerSoft: "#FEE2E2",
+  border: "#E2E8F0",
 };
 const DARK_THEME = {
-  ink: "#EDEEF2",
-  inkSoft: "#9BA1AE",
-  paper: "#0E0F12",
-  paperCard: "#1A1C21",
-  sidebar: "#000000",
-  sidebarAlt: "#1C1D22",
-  sidebarText: "#9CA3AF",
+  ink: "#F8FAFC",
+  inkSoft: "#94A3B8",
+  paper: "#090D16",
+  paperCard: "#111827",
+  sidebar: "#040711",
+  sidebarAlt: "#0E1526",
+  sidebarText: "#94A3B8",
   accent: "#F2B705",
-  accentSoft: "#3A2F0C",
-  success: "#34D399",
-  successSoft: "#123527",
-  danger: "#F87171",
-  dangerSoft: "#3A1518",
-  border: "#2B2E36",
+  accentSoft: "#362B0A",
+  success: "#10B981",
+  successSoft: "#064E3B",
+  danger: "#EF4444",
+  dangerSoft: "#450A0A",
+  border: "#1E293B",
 };
-// C est mutable : ses propriétés sont réassignées par applyTheme() pour basculer clair/sombre
-// sans devoir toucher chaque référence C.xxx dans le reste du fichier.
+
 let C = { ...LIGHT_THEME };
 function applyTheme(mode) {
   Object.assign(C, mode === "dark" ? DARK_THEME : LIGHT_THEME);
@@ -68,7 +67,7 @@ function useGoogleFonts() {
     const link = document.createElement("link");
     link.id = "electrolik-fonts";
     link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap";
+    link.href = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap";
     document.head.appendChild(link);
 
     if (document.getElementById("electrolik-global-style")) return;
@@ -77,41 +76,29 @@ function useGoogleFonts() {
     style.textContent = `
       * { box-sizing: border-box; }
       body { -webkit-font-smoothing: antialiased; }
-      ::selection { background: ${C.accent}; color: #14161B; }
-      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::selection { background: ${C.accent}; color: #000; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #D8DBE2; border-radius: 8px; }
-      ::-webkit-scrollbar-thumb:hover { background: #B9BEC9; }
-
-      .rounded-xl.border {
-        box-shadow: 0 1px 2px rgba(12,13,16,0.04), 0 10px 24px -14px rgba(12,13,16,0.14);
-        transition: box-shadow .18s ease, transform .18s ease;
+      ::-webkit-scrollbar-thumb { background: #94A3B840; border-radius: 99px; }
+      ::-webkit-scrollbar-thumb:hover { background: #94A3B880; }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      button, input, select, textarea { transition: all 0.15s ease; }
+      button:active { transform: scale(0.98); }
+      .card-modern {
+        background: ${C.paperCard};
+        border: 1px solid ${C.border};
+        border-radius: 16px;
+        box-shadow: 0 4px 20px -4px rgba(0,0,0,0.03);
       }
-      .rounded-xl.border:hover {
-        box-shadow: 0 2px 6px rgba(12,13,16,0.06), 0 16px 32px -14px rgba(12,13,16,0.18);
-      }
-      button { transition: background .15s ease, color .15s ease, opacity .15s ease, transform .1s ease, box-shadow .15s ease; }
-      button:active { transform: scale(0.97); }
-      input, select, textarea { transition: border-color .15s ease, box-shadow .15s ease; }
-      input:focus, select:focus, textarea:focus {
-        outline: none;
-        border-color: ${C.accent} !important;
-        box-shadow: 0 0 0 3px ${C.accentSoft};
-      }
-      .nav-btn { position: relative; transition: background .15s ease, color .15s ease; }
-      .nav-btn:hover { background: rgba(255,255,255,0.06) !important; color: #fff !important; }
-      .ek-badge { transition: transform .15s ease; }
-      .ek-badge:hover { transform: rotate(0deg) scale(1.03); }
     `;
     document.head.appendChild(style);
   }, []);
 }
 
 function uidBarcode() {
-  // EAN-13-like 13 digit code, generated locally (not a registered GS1 prefix)
-  let code = "200"; // internal-use prefix
+  let code = "200";
   for (let i = 0; i < 9; i++) code += Math.floor(Math.random() * 10);
-  // simple check digit (mod 10)
   let sum = 0;
   for (let i = 0; i < 12; i++) sum += Number(code[i]) * (i % 2 === 0 ? 1 : 3);
   const check = (10 - (sum % 10)) % 10;
@@ -120,7 +107,6 @@ function uidBarcode() {
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
-// ---- Variant-aware stock helpers ----
 function productQty(p) {
   return p.variants && p.variants.length > 0
     ? p.variants.reduce((s, v) => s + (v.qty || 0), 0)
@@ -133,8 +119,6 @@ function findByCode(products, code) {
   const norm = (s) => String(s || "").trim().toLowerCase();
   const raw = norm(code);
   if (!raw) return null;
-  // Variantes à essayer : le code brut, avec un zéro ajouté devant (EAN-13 lu comme UPC-A),
-  // sans le premier zéro (cas inverse), et en ne gardant que les chiffres.
   const digitsOnly = raw.replace(/[^0-9]/g, "");
   const candidates = [raw, "0" + raw, raw.replace(/^0/, ""), digitsOnly, "0" + digitsOnly, digitsOnly.replace(/^0/, "")];
   for (const target of candidates) {
@@ -180,7 +164,7 @@ async function sbLogin(email, password) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error_description || data.msg || "Identifiants incorrects");
-  return data; // { access_token, user, ... }
+  return data;
 }
 
 async function sbFetchProfile(userId, accessToken) {
@@ -246,7 +230,6 @@ async function sbFetchAuditLog(session) {
   return res.json();
 }
 
-// ---- Product image upload (Supabase Storage) ----
 async function sbUploadProductImage(session, file) {
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
   const path = `${session.userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -267,7 +250,6 @@ async function sbUploadProductImage(session, file) {
   return `${SUPABASE_URL}/storage/v1/object/public/product-images/${path}`;
 }
 
-// ---- Cloud backups (one row per day, upserted) ----
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -292,12 +274,10 @@ async function sbSaveBackup(session, db) {
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
-      console.error("Backup error", res.status, errText);
       return { ok: false, error: errText || `HTTP ${res.status}` };
     }
     return { ok: true };
   } catch (e) {
-    console.error("Backup error", e);
     return { ok: false, error: e.message };
   }
 }
@@ -329,12 +309,10 @@ async function sbLoadLatestBackup(session) {
     const rows = await res.json();
     return rows && rows[0] ? { data: rows[0].data, updatedAt: rows[0].updated_at } : null;
   } catch (e) {
-    console.error("Load latest backup error", e);
     return null;
   }
 }
 
-// ---------- Boutique en ligne (site public) ----------
 async function sbSyncPublicProducts(session, products, sales, onlineOrders) {
   const soldQty = {};
   (sales || []).forEach((s) => {
@@ -343,7 +321,6 @@ async function sbSyncPublicProducts(session, products, sales, onlineOrders) {
       soldQty[i.productId] = (soldQty[i.productId] || 0) + i.qty;
     });
   });
-  // Réserve le stock des commandes pas encore expédiées/annulées, pour éviter la survente sur le site
   const reservedQty = {};
   (onlineOrders || []).forEach((o) => {
     if (o.status === "annulee" || o.status === "expediee") return;
@@ -380,14 +357,8 @@ async function sbSyncPublicProducts(session, products, sales, onlineOrders) {
       },
       body: JSON.stringify(rows),
     });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => "");
-      console.error("Sync boutique en ligne error", res.status, errText);
-      return { ok: false, error: errText || `Erreur ${res.status}` };
-    }
-    return { ok: true };
+    return { ok: res.ok };
   } catch (e) {
-    console.error("Sync boutique en ligne error", e);
     return { ok: false, error: e.message };
   }
 }
@@ -400,7 +371,6 @@ async function sbFetchOnlineOrders(session) {
     if (!res.ok) return [];
     return await res.json();
   } catch (e) {
-    console.error("Fetch online orders error", e);
     return [];
   }
 }
@@ -417,12 +387,9 @@ async function sbUpdateOrderStatus(session, orderId, status) {
       },
       body: JSON.stringify({ status }),
     });
-  } catch (e) {
-    console.error("Update order status error", e);
-  }
+  } catch (e) {}
 }
 
-// ---------- Modération des avis clients ----------
 async function sbFetchAllReviews(session) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/product_reviews?select=*&order=created_at.desc`, {
@@ -431,7 +398,6 @@ async function sbFetchAllReviews(session) {
     if (!res.ok) return [];
     return await res.json();
   } catch (e) {
-    console.error("Fetch reviews error", e);
     return [];
   }
 }
@@ -444,12 +410,10 @@ async function sbDeleteReview(session, reviewId) {
     });
     return true;
   } catch (e) {
-    console.error("Delete review error", e);
     return false;
   }
 }
 
-// ---------- Codes promo ----------
 async function sbFetchPromoCodes(session) {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/promo_codes?select=*&order=created_at.desc`, {
@@ -458,7 +422,6 @@ async function sbFetchPromoCodes(session) {
     if (!res.ok) return [];
     return await res.json();
   } catch (e) {
-    console.error("Fetch promo codes error", e);
     return [];
   }
 }
@@ -477,7 +440,6 @@ async function sbCreatePromoCode(session, promo) {
     });
     return res.ok;
   } catch (e) {
-    console.error("Create promo code error", e);
     return false;
   }
 }
@@ -494,16 +456,14 @@ async function sbUpdatePromoCode(session, id, patch) {
       },
       body: JSON.stringify(patch),
     });
-  } catch (e) {
-    console.error("Update promo code error", e);
-  }
+  } catch (e) {}
 }
 
 const DEFAULT_DB = {
   products: [
-    { id: uid(), name: "Crème hydratante 50ml", sku: "COS-001", barcode: uidBarcode(), category: "Soin visage", price: 89, costPrice: 55, qty: 24, minQty: 5 },
-    { id: uid(), name: "Gel désinfectant 250ml", sku: "PARA-014", barcode: uidBarcode(), category: "Para-médical", price: 32, costPrice: 20, qty: 6, minQty: 10 },
-    { id: uid(), name: "Sérum vitamine C", sku: "COS-007", barcode: uidBarcode(), category: "Soin visage", price: 145, costPrice: 90, qty: 15, minQty: 5 },
+    { id: uid(), name: "Casque Gaming Pro RGB", sku: "CAS-001", barcode: uidBarcode(), category: "Audio", price: 290, costPrice: 180, qty: 14, minQty: 4 },
+    { id: uid(), name: "Clavier Mécanique RGB", sku: "CLAV-002", barcode: uidBarcode(), category: "Périphérique", price: 380, costPrice: 240, qty: 8, minQty: 3 },
+    { id: uid(), name: "Ventilateur Téléphone Gaming", sku: "VENT-003", barcode: uidBarcode(), category: "Mobile", price: 120, costPrice: 70, qty: 25, minQty: 6 },
   ],
   purchases: [],
   sales: [],
@@ -530,6 +490,198 @@ const DEFAULT_DB = {
   returns: [],
 };
 
+// ==========================================
+// CAMERA SCANNER OPTIMISÉ POUR SMARTPHONE
+// ==========================================
+function CameraScanner({ onDetected, onClose }) {
+  const containerId = useRef("scanner-" + Math.random().toString(36).substring(2, 9)).current;
+  const scannerRef = useRef(null);
+  const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const html5QrCode = new Html5Qrcode(containerId, {
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.QR_CODE,
+      ],
+      verbose: false,
+    });
+    scannerRef.current = html5QrCode;
+
+    const config = {
+      fps: 10,
+      qrbox: { width: 250, height: 160 }, // Fixed size stable
+      aspectRatio: 1.0,
+      videoConstraints: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1280 }, // 720p limit anti-freeze
+        height: { ideal: 720 }
+      }
+    };
+
+    html5QrCode.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => {
+        if (!isMounted) return;
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          onDetected(decodedText.trim());
+        }).catch(() => {
+          onDetected(decodedText.trim());
+        });
+      },
+      () => {}
+    ).then(() => {
+      if (isMounted) setReady(true);
+    }).catch((err) => {
+      if (isMounted) {
+        setError("Impossible d'activer la caméra. Vérifiez vos permissions de navigateur.");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      if (scannerRef.current) {
+        if (scannerRef.current.isScanning) {
+          scannerRef.current.stop().then(() => scannerRef.current.clear()).catch(() => {});
+        } else {
+          scannerRef.current.clear();
+        }
+      }
+    };
+  }, [containerId, onDetected]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(9, 13, 22, 0.8)", backdropFilter: "blur(6px)" }}>
+      <div className="w-full max-w-sm rounded-3xl p-6 border shadow-2xl" style={{ background: C.paperCard, borderColor: C.border }}>
+        <div className="flex items-center justify-between mb-4">
+          <span style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest font-semibold">
+            Scanner Code-barres
+          </span>
+          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-slate-500/10">
+            <X size={18} color={C.inkSoft} />
+          </button>
+        </div>
+
+        {error ? (
+          <div className="text-center py-6">
+            <AlertCircle size={32} className="mx-auto mb-2 text-rose-500" />
+            <p className="text-sm mb-4" style={{ color: C.danger }}>{error}</p>
+            <button onClick={onClose} className="px-5 py-2 text-xs rounded-xl border font-medium" style={{ borderColor: C.border, color: C.ink }}>
+              Fermer
+            </button>
+          </div>
+        ) : (
+          <div>
+            {!ready && (
+              <div className="py-14 text-center text-sm" style={{ color: C.inkSoft }}>
+                <RotateCcw size={22} className="animate-spin mx-auto mb-3 text-[#F2B705]" />
+                Connexion à la caméra...
+              </div>
+            )}
+            <div 
+              id={containerId} 
+              className="overflow-hidden rounded-2xl bg-black shadow-inner"
+              style={{ width: "100%", minHeight: ready ? "240px" : "0", display: ready ? "block" : "none" }}
+            />
+            <p className="text-xs text-center mt-4" style={{ color: C.inkSoft }}>
+              Pointez la caméra vers le code-barres du produit.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// COMPOSANTS UI MODERNES
+// ==========================================
+function StatCard({ label, value, icon: Icon, tone = "default" }) {
+  const isDanger = tone === "danger";
+  const isSuccess = tone === "success";
+
+  const iconBg = isDanger
+    ? "bg-rose-500/10 text-rose-500"
+    : isSuccess
+    ? "bg-emerald-500/10 text-emerald-500"
+    : "bg-amber-500/10 text-amber-500";
+
+  return (
+    <div
+      className="card-modern relative overflow-hidden p-5 transition-all duration-200 hover:-translate-y-1 hover:shadow-md"
+      style={{ background: C.paperCard, borderColor: C.border }}
+    >
+      <div className="flex items-center justify-between mb-3">
+        <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-wider font-medium">
+          {label}
+        </span>
+        <div className={`w-9 h-9 rounded-2xl flex items-center justify-center ${iconBg}`}>
+          <Icon size={18} />
+        </div>
+      </div>
+      <div style={{ ...displayFont, color: C.ink }} className="text-2xl font-bold tracking-tight">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ eyebrow, title, action }) {
+  return (
+    <div className="flex items-end justify-between mb-8 flex-wrap gap-4">
+      <div>
+        <div style={{ ...monoFont, color: C.accent, fontSize: 11 }} className="uppercase tracking-widest font-semibold mb-1">
+          {eyebrow}
+        </div>
+        <h1 style={{ ...displayFont, color: C.ink }} className="text-3xl font-extrabold tracking-tight">{title}</h1>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span style={{ ...monoFont, color: C.inkSoft, fontSize: 10 }} className="uppercase tracking-wider font-semibold block mb-1.5">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+const inputStyle = { borderColor: C.border, color: C.ink, background: C.paperCard };
+const inputClass = "w-full border rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#F2B705]/20 focus:border-[#F2B705]";
+
+function Stamp({ status, labels }) {
+  const paid = status === "paid";
+  const returned = status === "returned";
+  const color = returned ? C.inkSoft : paid ? C.success : C.danger;
+  const text = returned ? "RETOURNÉ" : labels ? (paid ? labels[0] : labels[1]) : paid ? "PAYÉ" : "EN ATTENTE";
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-semibold tracking-wider uppercase border"
+      style={{ ...monoFont, color, borderColor: color + "40", background: color + "10" }}
+    >
+      {returned ? <RotateCcw size={11} /> : paid ? <CheckCircle2 size={11} /> : <Clock size={11} />}
+      {text}
+    </span>
+  );
+}
+
+// ==========================================
+// APPLICATION PRINCIPALE
+// ==========================================
 export default function App() {
   useGoogleFonts();
   const [db, setDb] = useState(DEFAULT_DB);
@@ -537,12 +689,11 @@ export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [toast, setToast] = useState(null);
   const [session, setSession] = useState(null);
-  const [authChecked, setAuthChecked] = useState(false);
   const [theme, setTheme] = useState(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("ek-theme") : null;
     return saved || "light";
   });
-  applyTheme(theme); // mute C avant le rendu pour que tous les composants lisent les bonnes couleurs
+  applyTheme(theme);
 
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
@@ -554,16 +705,13 @@ export default function App() {
   const [deepLinkClientId, setDeepLinkClientId] = useState(null);
   const [deepLinkQuery, setDeepLinkQuery] = useState("");
   const [notifEnabled, setNotifEnabled] = useState(() => localStorage.getItem("ek-notif-enabled") === "1");
-
   const [locked, setLocked] = useState(false);
   const [unlockInput, setUnlockInput] = useState("");
   const [unlockError, setUnlockError] = useState(false);
+  const [newOrdersBadge, setNewOrdersBadge] = useState(0);
+
   const getLockPin = () => {
-    try {
-      return localStorage.getItem("ek-lock-pin") || "";
-    } catch (e) {
-      return "";
-    }
+    try { return localStorage.getItem("ek-lock-pin") || ""; } catch (e) { return ""; }
   };
   const tryUnlock = () => {
     if (unlockInput === getLockPin()) {
@@ -591,145 +739,22 @@ export default function App() {
     }
   };
 
-  // Vérifie une fois par jour (au chargement / changement de données) s'il y a des rappels urgents
   useEffect(() => {
-    if (!notifEnabled || !session || !("Notification" in window) || Notification.permission !== "granted") return;
-    const todayStr = today();
-    if (localStorage.getItem("ek-last-notif-date") === todayStr) return;
-
-    const daysUntil = (d) => Math.floor((new Date(d) - new Date(todayStr)) / 86400000);
-    const clientsToRemind = (db.clients || []).filter(
-      (c) => (c.balanceDue || 0) > 0 && (c.paymentMode === "hebdo" || c.paymentMode === "10j")
-    );
-    const echeancesUrgentes = (db.cheques || []).filter((c) => c.status === "pending" && daysUntil(c.dueDate) <= 2);
-    const parts = [];
-    if (clientsToRemind.length > 0) parts.push(`${clientsToRemind.length} client(s) à relancer`);
-    if (echeancesUrgentes.length > 0) parts.push(`${echeancesUrgentes.length} échéance(s) de chèque proche(s)`);
-
-    if (parts.length > 0) {
-      new Notification("Electrolik Gestion Pro", { body: parts.join(" · ") });
-      localStorage.setItem("ek-last-notif-date", todayStr);
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      try { setDb(JSON.parse(raw)); } catch (e) {}
     }
-  }, [notifEnabled, session, db.clients, db.cheques]);
-
-  // Vérifie toutes les 25s si une nouvelle commande en ligne est arrivée (PC ou téléphone, tant que l'app est ouverte)
-  const [newOrdersBadge, setNewOrdersBadge] = useState(0);
-
-  useEffect(() => {
-    if (!session) return;
-    const checkNewOrders = async () => {
-      const orders = await sbFetchOnlineOrders(session);
-      let seen = [];
-      try {
-        seen = JSON.parse(localStorage.getItem("ek-seen-orders") || "[]");
-      } catch (e) {
-        seen = [];
-      }
-      const newOnes = orders.filter((o) => !seen.includes(o.id));
-      if (newOnes.length > 0 && seen.length > 0) {
-        // seen.length > 0 évite de tout signaler en masse dès la toute première vérification
-        setNewOrdersBadge((n) => n + newOnes.length);
-        if (notifEnabled && "Notification" in window && Notification.permission === "granted") {
-          newOnes.forEach((o) => {
-            new Notification("Nouvelle commande en ligne 🛒", {
-              body: `${o.client_name} · ${fmt(o.total)} DHS · ${o.client_city}`,
-            });
-          });
-        }
-      }
-      localStorage.setItem("ek-seen-orders", JSON.stringify(orders.map((o) => o.id)));
-      // Maintient le stock "disponible" du site à jour selon les commandes en attente (anti-survente)
-      sbSyncPublicProducts(session, dbRef.current.products, dbRef.current.sales, orders);
-    };
-    checkNewOrders();
-    const t = setInterval(checkNewOrders, 25000);
-    return () => clearInterval(t);
-  }, [session, notifEnabled]);
-
-  // Réinitialise le badge quand on ouvre l'onglet Commandes en ligne
-  useEffect(() => {
-    if (tab === "commandes") setNewOrdersBadge(0);
-  }, [tab]);
-
-  useEffect(() => {
-    const onKeyDown = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    setLoading(false);
   }, []);
 
-  const handleSearchSelect = (result) => {
-    setSearchOpen(false);
-    if (result.type === "client") {
-      setDeepLinkClientId(result.id);
-      setTab("clients");
-    } else if (result.type === "product") {
-      setDeepLinkQuery(result.label);
-      setTab("stock");
-    } else if (result.type === "supplier") {
-      setTab("fournisseurs");
-    } else if (result.type === "invoice") {
-      setTab("facturation");
-    } else if (result.type === "colis") {
-      setTab("livraison");
-    }
-  };
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) setDb(JSON.parse(raw));
-      } catch (e) {
-        // no saved data yet — keep defaults
-      }
-      setLoading(false);
-    })();
-  }, []);
-
-  // Garde la trace de la donnée la plus fraîche connue (locale ou distante), pour éviter
-  // qu'une vérification cloud en retard n'écrase par erreur une modification toute récente
   const lastKnownTimestampRef = useRef(null);
-
-  // Référence toujours à jour vers db, utilisée dans les callbacks async (polling) qui ne doivent
-  // pas capturer une version périmée de db dans leur closure
   const dbRef = useRef(db);
-  useEffect(() => {
-    dbRef.current = db;
-  }, [db]);
+  useEffect(() => { dbRef.current = db; }, [db]);
 
-  // ---------- Synchronisation robuste (file d'attente + retry + détection online/offline) ----------
-  // Le localStorage sert de cache local instantané (toujours écrit en premier, jamais perdu).
-  // Le "pending flag" indique qu'une sauvegarde cloud est due mais pas encore confirmée.
-  const [syncStatus, setSyncStatus] = useState("synced"); // "synced" | "pending" | "syncing" | "offline" | "error"
-  const syncingRef = useRef(false); // évite deux tentatives de sync en parallèle
-  // Toujours mis à jour de façon SYNCHRONE dans persist() (contrairement à dbRef, qui passe par un
-  // useEffect et peut donc être encore périmé au moment où attemptSync() démarre juste après).
+  const [syncStatus, setSyncStatus] = useState("synced");
+  const syncingRef = useRef(false);
   const latestDbRef = useRef(db);
 
-  const markPending = () => {
-    try {
-      localStorage.setItem("ek-sync-pending", "1");
-    } catch (e) {}
-  };
-  const clearPending = () => {
-    try {
-      localStorage.removeItem("ek-sync-pending");
-    } catch (e) {}
-  };
-  const hasPending = () => {
-    try {
-      return localStorage.getItem("ek-sync-pending") === "1";
-    } catch (e) {
-      return false;
-    }
-  };
-
-  // Tente d'envoyer l'état actuel vers Supabase, avec re-essais automatiques (backoff) tant que ça échoue
   const attemptSync = async (attempt = 0) => {
     if (!session || syncingRef.current) return;
     if (!navigator.onLine) {
@@ -738,7 +763,7 @@ export default function App() {
     }
     syncingRef.current = true;
     setSyncStatus("syncing");
-    const next = latestDbRef.current; // snapshot exact au moment de l'envoi
+    const next = latestDbRef.current;
     const [backupResult] = await Promise.all([
       sbSaveBackup(session, next),
       sbSyncPublicProducts(session, next.products, next.sales),
@@ -747,17 +772,12 @@ export default function App() {
 
     if (backupResult.ok) {
       if (latestDbRef.current === next) {
-        // Rien n'a changé pendant l'envoi : c'est bien synchronisé
-        clearPending();
+        try { localStorage.removeItem("ek-sync-pending"); } catch (e) {}
         setSyncStatus("synced");
       } else {
-        // D'autres modifications sont arrivées pendant l'envoi (ex: ajout rapide de plusieurs
-        // produits) — on relance immédiatement une synchronisation pour ne rien perdre.
         attemptSync();
       }
     } else {
-      // Échec réseau ou serveur : on garde la donnée en attente et on réessaie avec un délai croissant
-      // (2s, 4s, 8s… plafonné à 30s), sans jamais perdre les données locales (déjà en localStorage).
       setSyncStatus(navigator.onLine ? "error" : "offline");
       const delay = Math.min(30000, 2000 * Math.pow(2, attempt));
       setTimeout(() => attemptSync(attempt + 1), delay);
@@ -766,67 +786,20 @@ export default function App() {
 
   const persist = async (next) => {
     setDb(next);
-    latestDbRef.current = next; // synchrone : toujours à jour, même si le useEffect de dbRef n'a pas encore tourné
-    lastKnownTimestampRef.current = new Date().toISOString(); // notre propre changement est forcément le plus récent
+    latestDbRef.current = next;
+    lastKnownTimestampRef.current = new Date().toISOString();
     try {
-      // Le cache local est écrit de façon synchrone : la saisie n'est JAMAIS perdue,
-      // même si le réseau tombe juste après ce clic.
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch (e) {
-      console.error("Storage error", e);
-    }
+    } catch (e) {}
     if (session) {
-      markPending();
+      try { localStorage.setItem("ek-sync-pending", "1"); } catch (e) {}
       attemptSync();
     }
   };
 
-  // Dès que la connexion revient, on vide immédiatement la file d'attente
-  useEffect(() => {
-    const onOnline = () => {
-      if (hasPending()) attemptSync();
-    };
-    const onOffline = () => setSyncStatus("offline");
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, [session]);
-
-  // Filet de sécurité : si une sauvegarde reste en attente (ex: app rouverte après une coupure),
-  // on retente périodiquement jusqu'à confirmation.
-  useEffect(() => {
-    if (!session) return;
-    if (hasPending()) attemptSync();
-    const t = setInterval(() => {
-      if (hasPending() && navigator.onLine) attemptSync();
-    }, 15000);
-    return () => clearInterval(t);
-  }, [session]);
-
-  // Synchronisation automatique : vérifie toutes les 20s si un autre appareil a mis à jour les données
-  useEffect(() => {
-    if (!session) return;
-    const t = setInterval(async () => {
-      const result = await sbLoadLatestBackup(session);
-      if (result && (!lastKnownTimestampRef.current || result.updatedAt > lastKnownTimestampRef.current)) {
-        setDb(result.data);
-        lastKnownTimestampRef.current = result.updatedAt;
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(result.data));
-        } catch (e) {
-          console.error("Storage error", e);
-        }
-      }
-    }, 20000);
-    return () => clearInterval(t);
-  }, [session]);
-
   const notify = (msg, undo) => {
     setToast({ msg, undo });
-    setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), undo ? 6000 : 2200);
+    setTimeout(() => setToast((t) => (t && t.msg === msg ? null : t)), undo ? 6000 : 2500);
   };
 
   const log = (action, tableName, recordId, details) => sbLogAction(session, action, tableName, recordId, details);
@@ -841,19 +814,26 @@ export default function App() {
       role: (profile && profile.role) || "vendeur",
     };
     setSession(s);
-    // Synchronise avec la dernière sauvegarde cloud (récupère les données créées sur un autre appareil)
     const cloudBackup = await sbLoadLatestBackup(s);
     if (cloudBackup) {
       setDb(cloudBackup.data);
       lastKnownTimestampRef.current = cloudBackup.updatedAt;
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudBackup.data));
-      } catch (e) {
-        console.error("Storage error", e);
-      }
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cloudBackup.data)); } catch (e) {}
     }
-    sbSaveBackup(s, cloudBackup ? cloudBackup.data : db); // assure une sauvegarde du jour dès la connexion
   };
+
+  useEffect(() => {
+    if (!session) return;
+    const t = setInterval(async () => {
+      const result = await sbLoadLatestBackup(session);
+      if (result && (!lastKnownTimestampRef.current || result.updatedAt > lastKnownTimestampRef.current)) {
+        setDb(result.data);
+        lastKnownTimestampRef.current = result.updatedAt;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(result.data)); } catch (e) {}
+      }
+    }, 20000);
+    return () => clearInterval(t);
+  }, [session]);
 
   const nav = [
     { id: "dashboard", label: "Tableau de bord", icon: LayoutDashboard },
@@ -891,32 +871,46 @@ export default function App() {
   if (loading) {
     return (
       <div style={{ background: C.paper, minHeight: "100vh", ...bodyFont }} className="flex items-center justify-center">
-        <div style={{ ...monoFont, color: C.inkSoft }} className="text-sm tracking-widest uppercase">
-          Chargement…
+        <div className="flex flex-col items-center gap-3">
+          <RotateCcw size={28} className="animate-spin text-[#F2B705]" />
+          <span style={{ ...monoFont, color: C.inkSoft }} className="text-xs uppercase tracking-widest">
+            Chargement de l'application...
+          </span>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ background: C.paper, minHeight: "100vh", ...bodyFont }} className="flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <aside style={{ background: `linear-gradient(180deg, ${C.sidebar} 0%, #08090B 100%)` }} className="md:w-64 w-full flex md:flex-col shrink-0">
-        <div className="p-6 hidden md:block">
-          <img src="/logo.png" alt="Electrolik" style={{ width: 150, height: "auto" }} />
-          <div style={{ ...monoFont, color: C.sidebarText }} className="text-[10px] tracking-[0.2em] uppercase mt-2">
-            Gestion Pro — Registre de commerce
+    <div style={{ background: C.paper, minHeight: "100vh", ...bodyFont }} className="flex flex-col md:flex-row antialiased">
+      {/* Sidebar Moderne SaaS */}
+      <aside
+        style={{ background: "#090D16", borderColor: "rgba(255,255,255,0.06)" }}
+        className="md:w-64 w-full flex md:flex-col shrink-0 border-r select-none z-30"
+      >
+        <div className="p-5 hidden md:block">
+          <div className="flex items-center gap-3 mb-1">
+            <img src="/logo.png" alt="Electrolik" className="h-7 w-auto object-contain" />
+            <div>
+              <div className="text-xs font-bold text-white tracking-wide" style={displayFont}>ELECTROLIK</div>
+              <div style={{ ...monoFont, color: "#64748B", fontSize: 9 }} className="tracking-widest uppercase">
+                Gestion Pro
+              </div>
+            </div>
           </div>
+
           <button
             onClick={() => setSearchOpen(true)}
-            className="mt-4 w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs"
-            style={{ background: "rgba(255,255,255,0.06)", color: C.sidebarText }}
+            className="mt-5 w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs transition-all border border-white/5 hover:border-white/15 bg-white/[0.03] text-gray-400 hover:text-white"
           >
-            <Search size={13} /> Rechercher…
-            <span style={{ ...monoFont, fontSize: 9 }} className="ml-auto opacity-60">⌘K</span>
+            <Search size={14} />
+            <span className="flex-1 text-left">Recherche globale...</span>
+            <kbd style={{ ...monoFont, fontSize: 9 }} className="px-1.5 py-0.5 rounded bg-white/10 text-gray-300">⌘K</kbd>
           </button>
         </div>
-        <nav className="flex md:flex-col flex-1 md:px-3 md:pb-6 overflow-x-auto">
+
+        {/* Navigation items */}
+        <nav className="flex md:flex-col flex-1 p-2 md:px-3 md:pb-4 gap-1 overflow-x-auto no-scrollbar">
           {nav.map((n, i) => {
             const active = tab === n.id;
             const Icon = n.icon;
@@ -924,32 +918,36 @@ export default function App() {
               <button
                 key={n.id}
                 onClick={() => setTab(n.id)}
-                className="nav-btn flex items-center gap-3 px-4 md:px-3 py-3 md:py-2.5 md:rounded-xl whitespace-nowrap"
-                style={{
-                  background: active ? C.sidebarAlt : "transparent",
-                  color: active ? "#fff" : C.sidebarText,
-                  borderLeft: active ? `3px solid ${C.accent}` : "3px solid transparent",
-                }}
+                className={`group relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-all duration-150 ${
+                  active
+                    ? "bg-[#F2B705]/15 text-[#F2B705] shadow-sm font-semibold"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-white/[0.04]"
+                }`}
               >
-                <span style={{ ...monoFont, fontSize: 10, opacity: 0.6 }}>0{i + 1}</span>
-                <Icon size={16} />
-                <span className="text-sm flex-1 text-left">{n.label}</span>
+                <Icon size={16} className={active ? "text-[#F2B705]" : "text-slate-400"} />
+                <span className="flex-1 text-left tracking-wide">{n.label}</span>
+
                 {n.id === "commandes" && newOrdersBadge > 0 && (
                   <span
-                    className="text-[10px] w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                    className="text-[10px] px-1.5 py-0.5 rounded-full font-bold flex items-center justify-center animate-pulse"
                     style={{ background: C.danger, color: "#fff", ...monoFont }}
                   >
                     {newOrdersBadge}
                   </span>
                 )}
+                {active && (
+                  <span className="absolute right-0 w-1 h-4 rounded-l-full bg-[#F2B705] hidden md:block" />
+                )}
               </button>
             );
           })}
         </nav>
-        <div className="p-4 md:border-t hidden md:block" style={{ borderColor: C.sidebarAlt }}>
-          <div className="flex items-center gap-2 mb-3 text-[11px]" style={{ color: C.sidebarText }}>
+
+        {/* Footer & Compte */}
+        <div className="p-3 md:p-4 border-t border-white/5 hidden md:block">
+          <div className="flex items-center gap-2 mb-3 px-1 text-[11px] text-slate-400">
             <span
-              className="w-2 h-2 rounded-full shrink-0"
+              className={`w-2 h-2 rounded-full shrink-0 ${syncStatus === "syncing" ? "animate-ping" : ""}`}
               style={{
                 background:
                   syncStatus === "synced" ? C.success :
@@ -957,41 +955,45 @@ export default function App() {
                   syncStatus === "offline" ? C.inkSoft : C.danger,
               }}
             />
-            {syncStatus === "synced" && "Synchronisé"}
-            {syncStatus === "syncing" && "Synchronisation…"}
-            {syncStatus === "pending" && "En attente…"}
-            {syncStatus === "offline" && "Hors ligne — sera synchronisé au retour du réseau"}
-            {syncStatus === "error" && "Erreur de synchronisation — nouvelle tentative…"}
+            <span className="truncate">
+              {syncStatus === "synced" && "Synchronisé"}
+              {syncStatus === "syncing" && "Synchronisation..."}
+              {syncStatus === "pending" && "En attente..."}
+              {syncStatus === "offline" && "Hors ligne"}
+              {syncStatus === "error" && "Erreur sync"}
+            </span>
           </div>
-          <div className="flex items-center justify-between">
-            <div>
-              <div style={{ color: "#fff" }} className="text-sm">{session.userName}</div>
-              <div style={{ ...monoFont, color: C.sidebarText, fontSize: 10 }} className="uppercase tracking-widest">
+
+          <div className="flex items-center justify-between p-2 rounded-2xl bg-white/[0.03] border border-white/5">
+            <div className="min-w-0 pr-2">
+              <div className="text-xs font-semibold text-white truncate">{session.userName}</div>
+              <div style={{ ...monoFont, fontSize: 9 }} className="text-[#F2B705] uppercase tracking-wider font-semibold">
                 {session.role === "admin" ? "Admin" : "Vendeur"}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+
+            <div className="flex items-center gap-1">
               {getLockPin() && (
-                <button onClick={() => setLocked(true)} title="Verrouiller l'écran">
-                  <Lock size={16} color={C.sidebarText} />
+                <button onClick={() => setLocked(true)} title="Verrouiller" className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white">
+                  <Lock size={14} />
                 </button>
               )}
-              <button onClick={toggleNotifications} title={notifEnabled ? "Désactiver les notifications" : "Activer les notifications"}>
-                <Bell size={16} color={notifEnabled ? C.accent : C.sidebarText} />
+              <button onClick={toggleNotifications} title="Notifications" className="p-1.5 rounded-lg hover:bg-white/10">
+                <Bell size={14} color={notifEnabled ? C.accent : "#94A3B8"} />
               </button>
-              <button onClick={toggleTheme} title={theme === "dark" ? "Mode clair" : "Mode sombre"}>
-                {theme === "dark" ? <Sun size={16} color={C.sidebarText} /> : <Moon size={16} color={C.sidebarText} />}
+              <button onClick={toggleTheme} title="Thème" className="p-1.5 rounded-lg hover:bg-white/10 text-slate-400 hover:text-white">
+                {theme === "dark" ? <Sun size={14} /> : <Moon size={14} />}
               </button>
-              <button onClick={() => setSession(null)} title="Déconnexion">
-                <LogOut size={16} color={C.sidebarText} />
+              <button onClick={() => setSession(null)} title="Déconnexion" className="p-1.5 rounded-lg hover:bg-rose-500/10 text-slate-400 hover:text-rose-400">
+                <LogOut size={14} />
               </button>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Main */}
-      <main className="flex-1 p-5 md:p-10 max-w-6xl">
+      {/* Main Container */}
+      <main className="flex-1 p-5 md:p-8 max-w-7xl mx-auto w-full">
         {tab === "dashboard" && <Dashboard db={db} session={session} />}
         {tab === "aujourdhui" && <Aujourdhui db={db} setTab={setTab} session={session} />}
         {tab === "rapports" && <Rapports db={db} session={session} />}
@@ -1016,14 +1018,37 @@ export default function App() {
         {tab === "audit" && session.role === "admin" && <AuditLog session={session} />}
       </main>
 
-      {searchOpen && <GlobalSearch db={db} onSelect={handleSearchSelect} onClose={() => setSearchOpen(false)} />}
+      {/* Global Search Modal */}
+      {searchOpen && (
+        <GlobalSearch
+          db={db}
+          onSelect={(result) => {
+            setSearchOpen(false);
+            if (result.type === "client") {
+              setDeepLinkClientId(result.id);
+              setTab("clients");
+            } else if (result.type === "product") {
+              setDeepLinkQuery(result.label);
+              setTab("stock");
+            } else if (result.type === "supplier") {
+              setTab("fournisseurs");
+            } else if (result.type === "invoice") {
+              setTab("facturation");
+            } else if (result.type === "colis") {
+              setTab("livraison");
+            }
+          }}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
 
+      {/* Lock Screen */}
       {locked && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" style={{ background: C.sidebar }}>
-          <div className="w-full max-w-xs text-center">
-            <img src="/logo.png" alt="Electrolik" style={{ width: 140, height: "auto", margin: "0 auto 24px" }} />
-            <div style={{ ...monoFont, color: C.sidebarText, fontSize: 11 }} className="uppercase tracking-widest mb-4">
-              Écran verrouillé — entrez le code
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
+          <div className="w-full max-w-xs text-center p-8 rounded-3xl border border-white/10 bg-[#090D16] shadow-2xl">
+            <img src="/logo.png" alt="Electrolik" className="h-9 w-auto mx-auto mb-6" />
+            <div style={{ ...monoFont, color: "#94A3B8", fontSize: 11 }} className="uppercase tracking-widest mb-4">
+              Entrez votre code PIN
             </div>
             <input
               type="password"
@@ -1038,6051 +1063,35 @@ export default function App() {
                 if (v.length === 4) setTimeout(() => tryUnlock(), 50);
               }}
               onKeyDown={(e) => e.key === "Enter" && tryUnlock()}
-              className="w-full text-center text-2xl py-3 rounded-md outline-none mb-3"
-              style={{ letterSpacing: "0.6em", background: C.sidebarAlt, color: "#fff", border: `1px solid ${unlockError ? C.danger : C.sidebarAlt}` }}
+              className="w-full text-center text-3xl py-3 rounded-2xl outline-none mb-3 bg-white/[0.05] text-white border"
+              style={{ letterSpacing: "0.6em", borderColor: unlockError ? C.danger : "rgba(255,255,255,0.1)" }}
             />
-            {unlockError && <p className="text-xs mb-3" style={{ color: C.danger }}>Code incorrect</p>}
-            <button onClick={() => setSession(null)} className="text-xs" style={{ color: C.sidebarText }}>
-              Se déconnecter à la place
+            {unlockError && <p className="text-xs mb-3 text-rose-500 font-medium">Code incorrect</p>}
+            <button onClick={() => setSession(null)} className="text-xs text-slate-400 hover:text-white">
+              Déconnexion
             </button>
           </div>
         </div>
       )}
 
+      {/* Toast notifications */}
       {toast && (
         <div
-          className="fixed bottom-6 right-6 px-4 py-3 rounded-md shadow-lg text-sm flex items-center gap-4"
-          style={{ background: C.ink, color: "#fff" }}
+          className="fixed bottom-6 right-6 px-4 py-3 rounded-2xl shadow-2xl text-sm flex items-center gap-4 z-50 border border-white/10 animate-bounce"
+          style={{ background: "#0F172A", color: "#fff" }}
         >
           <span>{toast.msg}</span>
           {toast.undo && (
             <button
-              onClick={() => {
-                toast.undo();
-                setToast(null);
-              }}
-              className="px-3 py-1 rounded-md text-xs font-medium"
-              style={{ background: C.accent, color: "#fff" }}
+              onClick={() => { toast.undo(); setToast(null); }}
+              className="px-3 py-1 rounded-lg text-xs font-semibold"
+              style={{ background: C.accent, color: "#000" }}
             >
               Annuler
             </button>
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-// ---------- Login ----------
-// ---------- Camera barcode scanner (mobile/webcam) ----------
-function CameraScanner({ onDetected, onClose }) {
-  // Un identifiant unique par instance évite tout conflit avec une session caméra précédente mal fermée
-  const regionIdRef = useRef("camera-scan-" + Math.random().toString(36).slice(2));
-  const scannerRef = useRef(null);
-  const [error, setError] = useState("");
-  const [lastRead, setLastRead] = useState("");
-  const [ready, setReady] = useState(false);
-  const [retryKey, setRetryKey] = useState(0);
-
-  useEffect(() => {
-    let stopped = false;
-    let cancelled = false;
-    const regionId = regionIdRef.current;
-
-    const scanner = new Html5Qrcode(regionId, {
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.CODABAR,
-        Html5QrcodeSupportedFormats.ITF,
-        Html5QrcodeSupportedFormats.QR_CODE,
-      ],
-      verbose: false,
-    });
-    scannerRef.current = scanner;
-
-    const safeStop = async () => {
-      try {
-        if (scanner.getState && scanner.getState() === 2 /* SCANNING */) {
-          await scanner.stop();
-        }
-        scanner.clear();
-      } catch (e) {
-        // déjà arrêté / pas grave
-      }
-    };
-
-    scanner
-      .start(
-        { facingMode: "environment" },
-        {
-          fps: 10,
-          // Boîte de scan calculée depuis la taille réelle de la caméra — une taille fixe en pixels
-          // peut dépasser la résolution de la caméra sur certains téléphones et provoquer un écran blanc figé.
-          qrbox: (viewfinderWidth, viewfinderHeight) => {
-            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-            const size = Math.floor(minEdge * 0.7);
-            return { width: size, height: Math.floor(size * 0.55) };
-          },
-          disableFlip: false,
-        },
-        (decodedText, decodedResult) => {
-          setLastRead(`${decodedText}${decodedResult && decodedResult.result && decodedResult.result.format ? " (" + decodedResult.result.format.formatName + ")" : ""}`);
-          if (stopped) return;
-          stopped = true;
-          safeStop().finally(() => onDetected(decodedText));
-        },
-        () => {} // ignore per-frame "not found" noise
-      )
-      .then(() => {
-        if (!cancelled) setReady(true);
-      })
-      .catch(() => {
-        if (!cancelled) setError("Impossible d'accéder à la caméra. Vérifiez les autorisations du navigateur, ou réessayez.");
-      });
-
-    return () => {
-      cancelled = true;
-      stopped = true;
-      safeStop();
-    };
-  }, [retryKey]);
-
-  const retry = () => {
-    setError("");
-    setReady(false);
-    regionIdRef.current = "camera-scan-" + Math.random().toString(36).slice(2);
-    setRetryKey((k) => k + 1);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,24,43,0.85)" }}>
-      <div className="w-full max-w-sm rounded-xl p-4" style={{ background: C.paperCard }}>
-        <div className="flex items-center justify-between mb-3">
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">Scanner un code-barres</div>
-          <button onClick={onClose}><X size={16} color={C.inkSoft} /></button>
-        </div>
-        {error ? (
-          <div>
-            <p className="text-sm mb-3" style={{ color: C.danger }}>{error}</p>
-            <button onClick={retry} className="w-full py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
-              Réessayer
-            </button>
-          </div>
-        ) : (
-          <>
-            {!ready && (
-              <p className="text-sm text-center py-8" style={{ color: C.inkSoft }}>Ouverture de la caméra…</p>
-            )}
-            <div id={regionIdRef.current} style={{ width: "100%", borderRadius: 8, overflow: "hidden", display: ready ? "block" : "none" }} />
-            {ready && (
-              <button onClick={retry} className="w-full mt-2 py-1.5 rounded-md text-xs border" style={{ borderColor: C.border, color: C.inkSoft }}>
-                La caméra est bloquée ? Réessayer
-              </button>
-            )}
-          </>
-        )}
-        <p className="text-xs mt-3 text-center" style={{ color: C.inkSoft }}>Pointez la caméra vers le code-barres du produit, à environ 10-15 cm, bien éclairé.</p>
-        {lastRead && (
-          <p className="text-xs mt-2 text-center" style={{ ...monoFont, color: C.accent }}>Dernier code lu : {lastRead}</p>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function Login({ onLogin }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async () => {
-    setError("");
-    if (!email || !password) return setError("Email et mot de passe requis");
-    setBusy(true);
-    try {
-      await onLogin(email, password);
-    } catch (e) {
-      setError(e.message || "Échec de connexion");
-    }
-    setBusy(false);
-  };
-
-  return (
-    <div style={{ background: C.sidebar, minHeight: "100vh", ...bodyFont }} className="flex items-center justify-center p-5">
-      <div className="w-full max-w-sm rounded-xl p-8" style={{ background: C.paperCard }}>
-        <img src="/logo.png" alt="Electrolik" style={{ display: "block", width: 190, height: "auto", margin: "0 auto 6px" }} />
-        <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-[0.2em] mb-6 text-center">
-          Gestion Pro — Connexion sécurisée
-        </div>
-        <div className="space-y-3">
-          <Field label="Email">
-            <input className={inputClass} style={inputStyle} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
-          </Field>
-          <Field label="Mot de passe">
-            <input type="password" className={inputClass} style={inputStyle} value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => e.key === "Enter" && submit()} />
-          </Field>
-        </div>
-        {error && <p className="text-xs mt-3" style={{ color: C.danger }}>{error}</p>}
-        <button
-          onClick={submit}
-          disabled={busy}
-          className="w-full mt-5 py-2.5 rounded-md text-sm text-white flex items-center justify-center gap-2 disabled:opacity-60"
-          style={{ background: C.accent }}
-        >
-          <Lock size={14} /> {busy ? "Connexion…" : "Se connecter"}
-        </button>
-        <p className="text-xs mt-4 text-center" style={{ color: C.inkSoft }}>
-          Les comptes sont créés par un administrateur dans Supabase.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Audit log ----------
-function AuditLog({ session }) {
-  const [rows, setRows] = useState([]);
-  const [loadingRows, setLoadingRows] = useState(true);
-
-  useEffect(() => {
-    (async () => {
-      const data = await sbFetchAuditLog(session);
-      setRows(Array.isArray(data) ? data : []);
-      setLoadingRows(false);
-    })();
-  }, []);
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Sécurité" title="Journal d'audit" />
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Utilisateur</td>
-              <td className="px-4 py-3">Action</td><td className="px-4 py-3">Table</td><td className="px-4 py-3">Détails</td>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={monoFont}>{new Date(r.created_at).toLocaleString("fr-FR")}</td>
-                <td className="px-4 py-3">{r.user_name}</td>
-                <td className="px-4 py-3" style={{ color: C.accent }}>{r.action}</td>
-                <td className="px-4 py-3" style={{ color: C.inkSoft }}>{r.table_name}</td>
-                <td className="px-4 py-3 text-xs" style={{ ...monoFont, color: C.inkSoft }}>
-                  {r.details ? JSON.stringify(r.details) : "—"}
-                </td>
-              </tr>
-            ))}
-            {!loadingRows && rows.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune activité enregistrée.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Shared bits ----------
-function StatCard({ label, value, icon: Icon, tone = "default" }) {
-  const bg = tone === "danger" ? C.dangerSoft : tone === "success" ? C.successSoft : C.paperCard;
-  const iconColor = tone === "danger" ? C.danger : tone === "success" ? C.success : C.accent;
-  return (
-    <div className="rounded-xl p-5 border" style={{ background: bg, borderColor: C.border }}>
-      <div className="flex items-center justify-between mb-3">
-        <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase tracking-widest">
-          {label}
-        </span>
-        <Icon size={16} color={iconColor} />
-      </div>
-      <div style={{ ...displayFont, color: C.ink }} className="text-3xl">
-        {value}
-      </div>
-    </div>
-  );
-}
-
-function Stamp({ status, labels }) {
-  const paid = status === "paid";
-  const returned = status === "returned";
-  const color = returned ? C.inkSoft : paid ? C.success : C.danger;
-  const text = returned ? "RETOURNÉ" : labels ? (paid ? labels[0] : labels[1]) : paid ? "PAYÉ" : "EN ATTENTE";
-  return (
-    <span
-      className="ek-badge inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2"
-      style={{ ...monoFont, fontSize: 10, letterSpacing: "0.12em", color, borderColor: color, transform: "rotate(-2deg)" }}
-    >
-      {returned ? <RotateCcw size={11} /> : paid ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-      {text}
-    </span>
-  );
-}
-
-function SectionTitle({ eyebrow, title, action }) {
-  return (
-    <div className="flex items-end justify-between mb-6 flex-wrap gap-3">
-      <div>
-        <div style={{ ...monoFont, color: C.accent, fontSize: 11 }} className="uppercase tracking-[0.2em] mb-1">
-          {eyebrow}
-        </div>
-        <h1 style={{ ...displayFont, color: C.ink, letterSpacing: "-0.01em" }} className="text-3xl">{title}</h1>
-      </div>
-      {action}
-    </div>
-  );
-}
-
-function Field({ label, children }) {
-  return (
-    <label className="block">
-      <span style={{ ...monoFont, color: C.inkSoft, fontSize: 10 }} className="uppercase tracking-widest block mb-1">
-        {label}
-      </span>
-      {children}
-    </label>
-  );
-}
-const inputStyle = { borderColor: C.border, color: C.ink };
-const inputClass = "w-full border rounded-md px-3 py-2 text-sm outline-none focus:ring-2";
-
-// ---------- Dashboard ----------
-function Dashboard({ db, session }) {
-  const isVendeur = session && session.role === "vendeur";
-  const activeSales = db.sales.filter((s) => !s.returned && (!isVendeur || s.soldBy === session.userName));
-  const stockValue = db.products.reduce((s, p) => s + (p.costPrice || 0) * productQty(p), 0);
-  const rupture = db.products.filter((p) => productQty(p) <= 0);
-  const lowStock = db.products.filter((p) => productQty(p) > 0 && productQty(p) <= p.minQty);
-  const revenue = activeSales.reduce((s, sale) => s + sale.total, 0);
-  const currentMonth = today().slice(0, 7); // YYYY-MM
-  const monthRevenue = activeSales.filter((s) => s.date.slice(0, 7) === currentMonth).reduce((s, sale) => s + sale.total, 0);
-  const monthlyTarget = (db.company && db.company.monthlyTarget) || 0;
-  const targetPct = monthlyTarget > 0 ? Math.min(100, Math.round((monthRevenue / monthlyTarget) * 100)) : 0;
-  const pendingInvoices = db.invoices.filter((i) => i.status === "pending");
-  const grossMargin = activeSales.reduce((s, sale) => {
-    const saleMargin = (sale.items || []).reduce((sm, item) => {
-      const prod = db.products.find((p) => p.id === item.productId);
-      const cost = prod ? prod.costPrice || 0 : 0;
-      return sm + (item.price - cost) * item.qty;
-    }, 0);
-    return s + saleMargin;
-  }, 0);
-
-  const trend = useMemo(() => {
-    const map = {};
-    activeSales.forEach((s) => {
-      map[s.date] = (map[s.date] || 0) + s.total;
-    });
-    return Object.entries(map)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .slice(-14)
-      .map(([date, total]) => ({ date: date.slice(5), total }));
-  }, [db.sales]);
-
-  const topProducts = useMemo(() => {
-    const map = {};
-    activeSales.forEach((s) =>
-      s.items.forEach((i) => {
-        map[i.name] = (map[i.name] || 0) + i.qty * i.price;
-      })
-    );
-    return Object.entries(map)
-      .map(([name, total]) => ({ name: name.length > 14 ? name.slice(0, 14) + "…" : name, total }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 5);
-  }, [db.sales]);
-
-  const byChannel = useMemo(() => {
-    const map = {};
-    activeSales.forEach((s) => {
-      const ch = s.channel || "Boutique";
-      map[ch] = (map[ch] || 0) + s.total;
-    });
-    return Object.entries(map)
-      .map(([name, total]) => ({ name, total }))
-      .sort((a, b) => b.total - a.total);
-  }, [db.sales]);
-
-  const byVendor = useMemo(() => {
-    const map = {};
-    activeSales.forEach((s) => {
-      const v = s.soldBy || "—";
-      map[v] = (map[v] || 0) + s.total;
-    });
-    return Object.entries(map)
-      .map(([name, total]) => ({ name, total }))
-      .sort((a, b) => b.total - a.total);
-  }, [db.sales]);
-
-  // Rappels de paiement : clients "chaque semaine" / "10 jours" qui ont un solde dû à collecter
-  const clientsToRemind = useMemo(
-    () =>
-      (db.clients || [])
-        .filter((c) => (c.balanceDue || 0) > 0 && (c.paymentMode === "hebdo" || c.paymentMode === "10j"))
-        .sort((a, b) => (b.balanceDue || 0) - (a.balanceDue || 0)),
-    [db.clients]
-  );
-
-  // Produits stagnants : en stock depuis ≥30 jours sans aucune vente
-  const stagnantProducts = useMemo(() => {
-    const todayStr = today();
-    const lastSale = {};
-    activeSales.forEach((s) =>
-      (s.items || []).forEach((i) => {
-        if (!lastSale[i.productId] || s.date > lastSale[i.productId]) lastSale[i.productId] = s.date;
-      })
-    );
-    const daysSince = (d) => (d ? Math.floor((new Date(todayStr) - new Date(d)) / 86400000) : Infinity);
-    return db.products
-      .filter((p) => productQty(p) > 0)
-      .map((p) => ({ ...p, daysSince: daysSince(lastSale[p.id]) }))
-      .filter((p) => p.daysSince >= 30)
-      .sort((a, b) => b.daysSince - a.daysSince)
-      .slice(0, 8);
-  }, [db.products, db.sales]);
-
-  // Suggestions de réapprovisionnement : basées sur la vitesse de vente des 30 derniers jours
-  const reorderSuggestions = useMemo(() => {
-    const todayStr = today();
-    const cutoff = new Date(todayStr);
-    cutoff.setDate(cutoff.getDate() - 30);
-    const soldQty = {};
-    activeSales
-      .filter((s) => new Date(s.date) >= cutoff)
-      .forEach((s) => (s.items || []).forEach((i) => { soldQty[i.productId] = (soldQty[i.productId] || 0) + i.qty; }));
-    return db.products
-      .map((p) => {
-        const qty = productQty(p);
-        const sold30 = soldQty[p.id] || 0;
-        const dailyRate = sold30 / 30;
-        const daysLeft = dailyRate > 0 ? Math.floor(qty / dailyRate) : Infinity;
-        const suggestedQty = dailyRate > 0 ? Math.max(0, Math.ceil(dailyRate * 30) - qty) : 0;
-        return { ...p, sold30, daysLeft, suggestedQty };
-      })
-      .filter((p) => p.sold30 > 0 && p.daysLeft <= 14)
-      .sort((a, b) => a.daysLeft - b.daysLeft)
-      .slice(0, 8);
-  }, [db.products, db.sales]);
-
-  // Rentabilité par catégorie : marge générée sur les ventes actives
-  const categoryProfitability = useMemo(() => {
-    const map = {};
-    activeSales.forEach((s) =>
-      (s.items || []).forEach((i) => {
-        const prod = db.products.find((p) => p.id === i.productId);
-        const cat = prod ? prod.category || "Général" : "Général";
-        const cost = prod ? prod.costPrice || 0 : 0;
-        if (!map[cat]) map[cat] = { category: cat, revenue: 0, margin: 0 };
-        map[cat].revenue += i.price * i.qty;
-        map[cat].margin += (i.price - cost) * i.qty;
-      })
-    );
-    return Object.values(map).sort((a, b) => b.margin - a.margin);
-  }, [db.products, db.sales]);
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Vue d'ensemble" title="Tableau de bord" />
-      <div className={`grid grid-cols-2 gap-4 mb-8 ${isVendeur ? "md:grid-cols-2" : "md:grid-cols-5"}`}>
-        {!isVendeur && (
-          <>
-            <StatCard label="Chiffre d'affaires" value={fmt(revenue) + " DHS"} icon={TrendingUp} />
-            <StatCard label="Marge brute" value={fmt(grossMargin) + " DHS"} icon={PiggyBank} tone={grossMargin >= 0 ? "success" : "danger"} />
-            <StatCard label="Valeur du stock (coût)" value={fmt(stockValue) + " DHS"} icon={Boxes} />
-          </>
-        )}
-        <StatCard label="Ruptures de stock" value={rupture.length} icon={AlertTriangle} tone={rupture.length ? "danger" : "success"} />
-        <StatCard label="Stock bas" value={lowStock.length} icon={AlertTriangle} tone={lowStock.length ? "danger" : "success"} />
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Évolution des ventes</div>
-          {trend.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <LineChart data={trend}>
-                <CartesianGrid stroke={C.border} vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={{ stroke: C.border }} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={false} tickLine={false} width={40} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: C.border }} formatter={(v) => fmt(v) + " DHS"} />
-                <Line type="monotone" dataKey="total" stroke={C.accent} strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Top produits</div>
-          {topProducts.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={topProducts} layout="vertical" margin={{ left: 10 }}>
-                <XAxis type="number" tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={false} tickLine={false} />
-                <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={false} tickLine={false} width={90} />
-                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: C.border }} formatter={(v) => fmt(v) + " DHS"} />
-                <Bar dataKey="total" fill={C.accent} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Ventes par canal</div>
-        {byChannel.length === 0 ? (
-          <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
-        ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-3">
-            {byChannel.map((c) => {
-              const pct = revenue ? Math.round((c.total / revenue) * 100) : 0;
-              return (
-                <div key={c.name} className="rounded-md border p-3" style={{ borderColor: C.border }}>
-                  <div style={{ color: C.inkSoft }} className="text-xs mb-1">{c.name}</div>
-                  <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(c.total)} DHS</div>
-                  <div style={{ ...monoFont, color: C.accent, fontSize: 11 }}>{pct}%</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Ventes par vendeur</div>
-        {byVendor.length === 0 ? (
-          <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
-        ) : (
-          <div className="grid sm:grid-cols-2 md:grid-cols-5 gap-3">
-            {byVendor.map((v) => {
-              const pct = revenue ? Math.round((v.total / revenue) * 100) : 0;
-              return (
-                <div key={v.name} className="rounded-md border p-3" style={{ borderColor: C.border }}>
-                  <div style={{ color: C.inkSoft }} className="text-xs mb-1">{v.name}</div>
-                  <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(v.total)} DHS</div>
-                  <div style={{ ...monoFont, color: C.accent, fontSize: 11 }}>{pct}%</div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {monthlyTarget > 0 && (
-        <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div className="flex items-center justify-between mb-3">
-            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">
-              Objectif de vente — {new Date(currentMonth + "-01").toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
-            </div>
-            <div style={{ ...monoFont, color: C.ink }} className="text-sm">
-              {fmt(monthRevenue)} / {fmt(monthlyTarget)} DHS
-            </div>
-          </div>
-          <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: C.border }}>
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${targetPct}%`, background: targetPct >= 100 ? C.success : C.accent }}
-            />
-          </div>
-          <div className="mt-2 text-xs" style={{ color: C.inkSoft }}>
-            {targetPct >= 100 ? "🎉 Objectif atteint !" : `${targetPct}% atteint — ${fmt(Math.max(0, monthlyTarget - monthRevenue))} DHS restants`}
-          </div>
-        </div>
-      )}
-
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
-            <AlertCircle size={13} /> Rappels de paiement
-          </div>
-          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>Clients "chaque semaine" / "10 jours" avec un solde à collecter.</p>
-          {clientsToRemind.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Aucun rappel pour l'instant.</p>
-          ) : (
-            <ul className="space-y-2">
-              {clientsToRemind.map((c) => (
-                <li key={c.id} className="flex items-center justify-between text-sm">
-                  <div>
-                    <span style={{ color: C.ink }}>{c.name}</span>
-                    <span className="ml-2 text-[10px] px-2 py-0.5 rounded" style={{ ...monoFont, background: C.accentSoft, color: "#8A6D00" }}>
-                      {PAYMENT_MODE_LABELS[c.paymentMode]}
-                    </span>
-                  </div>
-                  <span style={{ ...monoFont, color: C.danger }}>{fmt(c.balanceDue)} DHS</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
-            <TrendingDown size={13} /> Produits qui ne bougent pas
-          </div>
-          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>En stock depuis 30 jours ou plus sans vente — à mettre en avant ou baisser de prix.</p>
-          {stagnantProducts.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Rien de stagnant, tout se vend bien 👍</p>
-          ) : (
-            <ul className="space-y-2">
-              {stagnantProducts.map((p) => (
-                <li key={p.id} className="flex items-center justify-between text-sm">
-                  <span style={{ color: C.ink }}>{p.name}</span>
-                  <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>
-                    {p.daysSince === Infinity ? "Jamais vendu" : `${p.daysSince} j sans vente`}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6 mb-8">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
-            <PackagePlus size={13} /> À réapprovisionner bientôt
-          </div>
-          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>Basé sur la vitesse de vente des 30 derniers jours — stock suffisant pour moins de 14 jours.</p>
-          {reorderSuggestions.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Aucun réapprovisionnement urgent pour l'instant.</p>
-          ) : (
-            <ul className="space-y-2">
-              {reorderSuggestions.map((p) => (
-                <li key={p.id} className="flex items-center justify-between text-sm">
-                  <span style={{ color: C.ink }}>{p.name}</span>
-                  <span style={{ ...monoFont, color: p.daysLeft <= 3 ? C.danger : "#B4813A", fontSize: 11 }}>
-                    {p.daysLeft} j restants · commander ~{p.suggestedQty}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
-            <BarChart3 size={13} /> Rentabilité par catégorie
-          </div>
-          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>Marge générée par catégorie de produits, toutes ventes confondues.</p>
-          {categoryProfitability.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée pour l'instant.</p>
-          ) : (
-            <ul className="space-y-2">
-              {categoryProfitability.map((c) => (
-                <li key={c.category} className="flex items-center justify-between text-sm">
-                  <span style={{ color: C.ink }}>{c.category}</span>
-                  <span style={{ ...monoFont, color: C.success, fontSize: 12 }}>+{fmt(c.margin)} DHS</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-
-      <div className="grid md:grid-cols-2 gap-6">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Alertes stock</div>
-          {rupture.length === 0 && lowStock.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Aucune alerte, tout est bien approvisionné.</p>
-          ) : (
-            <ul className="space-y-2">
-              {rupture.map((p) => (
-                <li key={p.id} className="flex justify-between text-sm">
-                  <span style={{ color: C.ink }}>{p.name}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: C.dangerSoft, color: C.danger, ...monoFont }}>RUPTURE</span>
-                </li>
-              ))}
-              {lowStock.map((p) => (
-                <li key={p.id} className="flex justify-between text-sm">
-                  <span style={{ color: C.ink }}>{p.name}</span>
-                  <span style={{ ...monoFont, color: "#B4813A" }}>{p.qty} restant</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
-            {isVendeur ? "Mes dernières ventes" : "Dernières ventes"}
-          </div>
-          {db.sales.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée pour l'instant.</p>
-          ) : (
-            <ul className="space-y-2">
-              {[...db.sales].filter((s) => !isVendeur || s.soldBy === session.userName).reverse().slice(0, 5).map((s) => (
-                <li key={s.id} className="flex justify-between text-sm">
-                  <span style={{ color: s.returned ? C.inkSoft : C.ink, textDecoration: s.returned ? "line-through" : "none" }}>
-                    {s.client || "Client comptoir"}{s.returned ? " (retourné)" : ""}
-                  </span>
-                  <span style={{ ...monoFont, color: s.returned ? C.inkSoft : C.ink }}>{fmt(s.total)} DHS</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Rapports (hebdomadaire / mensuel) ----------
-function isoWeekKey(dateStr) {
-  const d = new Date(dateStr + "T00:00:00");
-  const day = (d.getDay() + 6) % 7; // lundi = 0
-  d.setDate(d.getDate() - day + 3); // jeudi de cette semaine
-  const firstThursday = new Date(d.getFullYear(), 0, 4);
-  const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getDay() + 6) % 7)) / 7);
-  return `${d.getFullYear()}-S${String(week).padStart(2, "0")}`;
-}
-function monthKey(dateStr) {
-  return dateStr.slice(0, 7); // YYYY-MM
-}
-
-function Rapports({ db, session }) {
-  const [view, setView] = useState("week");
-  const isVendeur = session && session.role === "vendeur";
-  const mySales = db.sales.filter((s) => !isVendeur || s.soldBy === session.userName);
-
-  const grouped = useMemo(() => {
-    const map = {};
-    mySales.filter((s) => !s.returned).forEach((s) => {
-      const key = view === "week" ? isoWeekKey(s.date) : monthKey(s.date);
-      if (!map[key]) map[key] = { period: key, total: 0, count: 0, margin: 0 };
-      map[key].total += s.total;
-      map[key].count += 1;
-      map[key].margin += (s.items || []).reduce((sm, item) => {
-        const prod = db.products.find((p) => p.id === item.productId);
-        const cost = prod ? prod.costPrice || 0 : 0;
-        return sm + (item.price - cost) * item.qty;
-      }, 0);
-    });
-    return Object.values(map).sort((a, b) => a.period.localeCompare(b.period));
-  }, [mySales, db.products, view]);
-
-  const recent = grouped.slice(-(view === "week" ? 10 : 12));
-  const current = recent[recent.length - 1];
-  const previous = recent[recent.length - 2];
-  const change = current && previous && previous.total > 0
-    ? Math.round(((current.total - previous.total) / previous.total) * 100)
-    : null;
-
-  const byCategory = useMemo(() => {
-    const map = {};
-    mySales.filter((s) => !s.returned).forEach((s) => {
-      (s.items || []).forEach((item) => {
-        const prod = db.products.find((p) => p.id === item.productId);
-        const cat = prod ? prod.category || "Sans catégorie" : "Sans catégorie";
-        const cost = prod ? prod.costPrice || 0 : 0;
-        if (!map[cat]) map[cat] = { category: cat, revenue: 0, margin: 0, qty: 0 };
-        map[cat].revenue += item.price * item.qty;
-        map[cat].margin += (item.price - cost) * item.qty;
-        map[cat].qty += item.qty;
-      });
-    });
-    return Object.values(map).sort((a, b) => b.margin - a.margin);
-  }, [mySales, db.products]);
-
-  const printMonthlyReport = () => {
-    const company = db.company || {};
-    const currentMonth = today().slice(0, 7);
-    const monthSales = mySales.filter((s) => !s.returned && s.date.slice(0, 7) === currentMonth);
-    const revenue = monthSales.reduce((s, x) => s + x.total, 0);
-    const margin = monthSales.reduce((s, sale) => s + (sale.items || []).reduce((sm, item) => {
-      const prod = db.products.find((p) => p.id === item.productId);
-      const cost = prod ? prod.costPrice || 0 : 0;
-      return sm + (item.price - cost) * item.qty;
-    }, 0), 0);
-    const topProductsMap = {};
-    monthSales.forEach((s) => (s.items || []).forEach((i) => {
-      topProductsMap[i.name] = (topProductsMap[i.name] || 0) + i.qty * i.price;
-    }));
-    const topProducts = Object.entries(topProductsMap).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    const byVendorMap = {};
-    monthSales.forEach((s) => { byVendorMap[s.soldBy || "—"] = (byVendorMap[s.soldBy || "—"] || 0) + s.total; });
-    const byVendor = Object.entries(byVendorMap).sort((a, b) => b[1] - a[1]);
-
-    const html = `
-      <html>
-        <head>
-          <title>Rapport mensuel — ${currentMonth}</title>
-          <style>
-            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 720px; margin: auto; }
-            h1 { font-style: italic; margin-bottom: 0; }
-            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 24px; margin-bottom: 8px; }
-            table { width: 100%; border-collapse: collapse; }
-            td { padding: 5px 0; border-bottom: 1px solid #EEE; }
-            .stats { display: flex; gap: 24px; margin-top: 16px; }
-            .stat b { display: block; font-size: 22px; font-style: italic; }
-          </style>
-        </head>
-        <body>
-          <h1>${company.name || "Electrolik"}</h1>
-          <div class="muted">Rapport mensuel — ${currentMonth}</div>
-          <div class="stats">
-            <div class="stat"><span>Chiffre d'affaires</span><b>${fmt(revenue)} DHS</b></div>
-            <div class="stat"><span>Marge</span><b>${fmt(margin)} DHS</b></div>
-            <div class="stat"><span>Nombre de ventes</span><b>${monthSales.length}</b></div>
-          </div>
-          <div class="muted">Meilleures ventes</div>
-          <table>${topProducts.map(([name, total]) => `<tr><td>${name}</td><td style="text-align:right;">${fmt(total)} DHS</td></tr>`).join("")}</table>
-          <div class="muted">Par vendeur</div>
-          <table>${byVendor.map(([name, total]) => `<tr><td>${name}</td><td style="text-align:right;">${fmt(total)} DHS</td></tr>`).join("")}</table>
-        </body>
-      </html>`;
-    const w = window.open("", "_blank");
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
-
-  const exportExcel = () => {
-    const rows = grouped.map((g) => ({
-      Période: g.period,
-      "Chiffre d'affaires": g.total,
-      "Nombre de ventes": g.count,
-      "Panier moyen": g.count ? Math.round(g.total / g.count) : 0,
-      Marge: Math.round(g.margin),
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, view === "week" ? "Hebdomadaire" : "Mensuel");
-    XLSX.writeFile(wb, `rapport-${view === "week" ? "hebdo" : "mensuel"}-${today()}.xlsx`);
-  };
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Analyse"
-        title="Rapports des ventes"
-        action={
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-md border overflow-hidden" style={{ borderColor: C.border }}>
-              <button
-                onClick={() => setView("week")}
-                className="px-3 py-1.5 text-xs"
-                style={{ background: view === "week" ? C.accent : C.paperCard, color: view === "week" ? C.paperCard : C.ink }}
-              >
-                Hebdomadaire
-              </button>
-              <button
-                onClick={() => setView("month")}
-                className="px-3 py-1.5 text-xs"
-                style={{ background: view === "month" ? C.accent : C.paperCard, color: view === "month" ? C.paperCard : C.ink }}
-              >
-                Mensuel
-              </button>
-            </div>
-            <button onClick={exportExcel} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
-              <Download size={13} /> Excel
-            </button>
-            <button onClick={printMonthlyReport} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
-              <Printer size={13} /> Rapport mensuel (PDF)
-            </button>
-          </div>
-        }
-      />
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <StatCard label={view === "week" ? "Cette semaine" : "Ce mois"} value={current ? fmt(current.total) + " DHS" : "—"} icon={TrendingUp} />
-        <StatCard
-          label="Évolution"
-          value={change === null ? "—" : (change >= 0 ? "+" : "") + change + "%"}
-          icon={TrendingUp}
-          tone={change === null ? "default" : change >= 0 ? "success" : "danger"}
-        />
-        <StatCard label="Ventes" value={current ? current.count : 0} icon={ShoppingCart} />
-        <StatCard label="Panier moyen" value={current && current.count ? fmt(Math.round(current.total / current.count)) + " DHS" : "—"} icon={Receipt} />
-      </div>
-
-      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
-          {view === "week" ? "Chiffre d'affaires par semaine" : "Chiffre d'affaires par mois"}
-        </div>
-        {recent.length === 0 ? (
-          <p className="text-sm" style={{ color: C.inkSoft }}>Pas encore de ventes à afficher.</p>
-        ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={recent}>
-              <CartesianGrid stroke={C.border} vertical={false} />
-              <XAxis dataKey="period" tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={{ stroke: C.border }} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: C.inkSoft }} axisLine={false} tickLine={false} width={45} />
-              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, borderColor: C.border }} formatter={(v) => fmt(v) + " DHS"} />
-              <Bar dataKey="total" fill={C.accent} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Période</td>
-              <td className="px-4 py-3">Chiffre d'affaires</td>
-              <td className="px-4 py-3">Ventes</td>
-              <td className="px-4 py-3">Panier moyen</td>
-              <td className="px-4 py-3">Marge</td>
-            </tr>
-          </thead>
-          <tbody>
-            {[...recent].reverse().map((g) => (
-              <tr key={g.period} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={displayFont}>{g.period}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(g.total)} DHS</td>
-                <td className="px-4 py-3" style={monoFont}>{g.count}</td>
-                <td className="px-4 py-3" style={monoFont}>{g.count ? fmt(Math.round(g.total / g.count)) : 0} DHS</td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: g.margin >= 0 ? C.success : C.danger }}>{fmt(g.margin)} DHS</td>
-              </tr>
-            ))}
-            {recent.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune donnée pour l'instant.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3 mt-10">Rentabilité par catégorie</div>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Catégorie</td>
-              <td className="px-4 py-3">Articles vendus</td>
-              <td className="px-4 py-3">Chiffre d'affaires</td>
-              <td className="px-4 py-3">Marge</td>
-              <td className="px-4 py-3">Marge %</td>
-            </tr>
-          </thead>
-          <tbody>
-            {byCategory.map((c) => (
-              <tr key={c.category} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={{ color: C.ink }}>{c.category}</td>
-                <td className="px-4 py-3" style={monoFont}>{c.qty}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(c.revenue)} DHS</td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: c.margin >= 0 ? C.success : C.danger }}>{fmt(c.margin)} DHS</td>
-                <td className="px-4 py-3" style={monoFont}>{c.revenue ? Math.round((c.margin / c.revenue) * 100) : 0}%</td>
-              </tr>
-            ))}
-            {byCategory.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune donnée pour l'instant.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Stock ----------
-// ---------- Inventaire physique ----------
-function Inventaire({ db, persist, notify, log }) {
-  const [counts, setCounts] = useState({});
-  const [q, setQ] = useState("");
-
-  const rows = useMemo(() => {
-    const out = [];
-    db.products.forEach((p) => {
-      if (p.variants && p.variants.length > 0) {
-        p.variants.forEach((v) => {
-          out.push({ key: p.id + "::" + v.id, productId: p.id, variantId: v.id, name: `${p.name} — ${variantLabel(v)}`, theoretical: v.qty || 0 });
-        });
-      } else {
-        out.push({ key: p.id, productId: p.id, variantId: null, name: p.name, theoretical: p.qty || 0 });
-      }
-    });
-    return out.filter((r) => r.name.toLowerCase().includes(q.toLowerCase()));
-  }, [db.products, q]);
-
-  const setCount = (key, val) => setCounts((c) => ({ ...c, [key]: val }));
-
-  const validateInventory = () => {
-    const entries = rows
-      .map((r) => ({ ...r, counted: counts[r.key] !== undefined && counts[r.key] !== "" ? Number(counts[r.key]) : null }))
-      .filter((r) => r.counted !== null && r.counted !== r.theoretical);
-    if (entries.length === 0) return notify("Aucun écart à valider — les quantités saisies correspondent au stock théorique");
-
-    let products = [...db.products];
-    entries.forEach((e) => {
-      products = products.map((p) => {
-        if (p.id !== e.productId) return p;
-        if (e.variantId) {
-          return { ...p, variants: p.variants.map((v) => (v.id === e.variantId ? { ...v, qty: e.counted } : v)) };
-        }
-        return { ...p, qty: e.counted };
-      });
-    });
-
-    const record = {
-      id: uid(),
-      date: today(),
-      items: entries.map((e) => ({ name: e.name, theoretical: e.theoretical, counted: e.counted, ecart: e.counted - e.theoretical })),
-    };
-
-    persist({ ...db, products, inventories: [...(db.inventories || []), record] });
-    if (log) log("inventaire", "products", "-", { lignes: entries.length });
-    setCounts({});
-    notify(`Inventaire validé : ${entries.length} écart(s) ajusté(s) sur le stock`);
-  };
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Contrôle" title="Inventaire physique" />
-      <p className="text-sm mb-5" style={{ color: C.inkSoft }}>
-        Comptez le stock réel produit par produit. Le stock sera automatiquement ajusté pour correspondre au comptage lors de la validation.
-      </p>
-
-      <div className="flex items-center gap-2 border rounded-xl px-3 py-2 max-w-sm mb-4" style={{ borderColor: C.border, background: C.paperCard }}>
-        <Search size={14} color={C.inkSoft} />
-        <input
-          placeholder="Rechercher un produit…"
-          className="w-full outline-none text-sm bg-transparent"
-          style={{ color: C.ink }}
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
-      </div>
-
-      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Produit</td>
-              <td className="px-4 py-3">Stock théorique</td>
-              <td className="px-4 py-3">Quantité comptée</td>
-              <td className="px-4 py-3">Écart</td>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r) => {
-              const counted = counts[r.key];
-              const ecart = counted !== undefined && counted !== "" ? Number(counted) - r.theoretical : null;
-              return (
-                <tr key={r.key} className="border-b" style={{ borderColor: C.border }}>
-                  <td className="px-4 py-3" style={{ color: C.ink }}>{r.name}</td>
-                  <td className="px-4 py-3" style={monoFont}>{r.theoretical}</td>
-                  <td className="px-4 py-3">
-                    <input
-                      type="number"
-                      placeholder={String(r.theoretical)}
-                      value={counted || ""}
-                      onChange={(e) => setCount(r.key, e.target.value)}
-                      className="w-24 border rounded-md px-2 py-1 text-sm"
-                      style={inputStyle}
-                    />
-                  </td>
-                  <td className="px-4 py-3" style={{ ...monoFont, color: ecart === null || ecart === 0 ? C.inkSoft : ecart > 0 ? C.success : C.danger }}>
-                    {ecart === null ? "—" : ecart > 0 ? `+${ecart}` : ecart}
-                  </td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun produit.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <button onClick={validateInventory} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white mb-10" style={{ background: C.accent }}>
-        <CheckCircle2 size={14} /> Valider l'inventaire
-      </button>
-
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique des inventaires</div>
-      <div className="space-y-3">
-        {[...(db.inventories || [])].reverse().map((inv) => (
-          <div key={inv.id} className="rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
-            <div className="flex justify-between text-sm mb-2">
-              <span style={monoFont}>{inv.date}</span>
-              <span style={{ color: C.inkSoft }}>{inv.items.length} écart(s) ajusté(s)</span>
-            </div>
-            <ul className="text-xs space-y-1">
-              {inv.items.map((it, idx) => (
-                <li key={idx} className="flex justify-between">
-                  <span style={{ color: C.ink }}>{it.name}</span>
-                  <span style={{ ...monoFont, color: it.ecart > 0 ? C.success : C.danger }}>
-                    {it.theoretical} → {it.counted} ({it.ecart > 0 ? "+" : ""}{it.ecart})
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-        {(!db.inventories || db.inventories.length === 0) && (
-          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun inventaire réalisé pour l'instant.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Calculateur marketplace (commission + service, mode normal et inverse) ----------
-function MarketplaceCalculator({ db, persist, notify }) {
-  const saved = db.marketplaceSettings || { commissionRate: 15.73, serviceFee: 180 };
-  const [commissionRate, setCommissionRate] = useState(saved.commissionRate);
-  const [serviceFee, setServiceFee] = useState(saved.serviceFee);
-  const [mode, setMode] = useState("direct"); // direct | reverse
-  const [cost, setCost] = useState("");
-  const [sellingPrice, setSellingPrice] = useState("");
-  const [desiredProfit, setDesiredProfit] = useState("");
-
-  const saveSettings = () => {
-    persist({ ...db, marketplaceSettings: { commissionRate: Number(commissionRate) || 0, serviceFee: Number(serviceFee) || 0 } });
-    notify("Paramètres enregistrés");
-  };
-
-  const c = Number(cost) || 0;
-  const rate = Number(commissionRate) || 0;
-  const svc = Number(serviceFee) || 0;
-
-  // Mode direct : je connais le prix affiché sur leur site → je veux mon profit exact
-  let directResult = null;
-  if (mode === "direct" && sellingPrice !== "") {
-    const sp = Number(sellingPrice) || 0;
-    const commissionAmount = sp * (rate / 100);
-    const net = sp - commissionAmount - svc;
-    const profit = net - c;
-    directResult = { sp, commissionAmount, net, profit };
-  }
-
-  // Mode inverse : je connais le profit que je veux garder → quel prix fixer sur leur site
-  let reverseResult = null;
-  if (mode === "reverse" && desiredProfit !== "") {
-    const dp = Number(desiredProfit) || 0;
-    const denom = 1 - rate / 100;
-    if (denom > 0) {
-      const sp = (dp + svc + c) / denom;
-      const commissionAmount = sp * (rate / 100);
-      const net = sp - commissionAmount - svc;
-      reverseResult = { sp, commissionAmount, net, profit: net - c };
-    }
-  }
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Revente en ligne" title="Calculateur marketplace" />
-      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
-        Calcule ton profit réel après commission et frais de service, ou trouve directement le prix à fixer sur leur site pour garder le profit que tu veux.
-      </p>
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Paramètres de la plateforme</div>
-        <div className="grid sm:grid-cols-3 gap-3 items-end">
-          <Field label="Commission (%)">
-            <input type="number" step="0.01" className={inputClass} style={inputStyle} value={commissionRate} onChange={(e) => setCommissionRate(e.target.value)} />
-          </Field>
-          <Field label="Frais de service fixe (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={serviceFee} onChange={(e) => setServiceFee(e.target.value)} />
-          </Field>
-          <button onClick={saveSettings} className="px-4 py-2 rounded-md text-sm border h-fit" style={{ borderColor: C.border, color: C.ink }}>
-            <Save size={13} className="inline mr-1" /> Enregistrer par défaut
-          </button>
-        </div>
-        <p className="text-xs mt-2" style={{ color: C.inkSoft }}>
-          Ces taux peuvent changer selon le produit — modifie-les à chaque calcul si besoin, et clique "Enregistrer" pour en faire les valeurs par défaut.
-        </p>
-      </div>
-
-      <div className="flex items-center gap-1 border rounded-xl p-1 mb-6 w-fit" style={{ borderColor: C.border, background: C.paperCard }}>
-        <button
-          onClick={() => setMode("direct")}
-          className="text-sm px-4 py-2 rounded-md"
-          style={{ background: mode === "direct" ? C.accent : "transparent", color: mode === "direct" ? "#fff" : C.inkSoft }}
-        >
-          J'ai un prix de vente
-        </button>
-        <button
-          onClick={() => setMode("reverse")}
-          className="text-sm px-4 py-2 rounded-md"
-          style={{ background: mode === "reverse" ? C.accent : "transparent", color: mode === "reverse" ? "#fff" : C.inkSoft }}
-        >
-          Je veux un profit précis
-        </button>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
-            {mode === "direct" ? "Prix affiché sur leur site" : "Profit que je veux garder"}
-          </div>
-          <Field label="Coût d'achat du produit (DHS)">
-            <input type="number" className={inputClass} style={{ ...inputStyle, marginBottom: 12 }} value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Ex: 250" />
-          </Field>
-          {mode === "direct" ? (
-            <Field label="Prix de vente sur leur site (DHS)">
-              <input type="number" className={inputClass} style={inputStyle} value={sellingPrice} onChange={(e) => setSellingPrice(e.target.value)} placeholder="Ex: 400" />
-            </Field>
-          ) : (
-            <Field label="Profit net souhaité (DHS)">
-              <input type="number" className={inputClass} style={inputStyle} value={desiredProfit} onChange={(e) => setDesiredProfit(e.target.value)} placeholder="Ex: 100" />
-            </Field>
-          )}
-        </div>
-
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Résultat</div>
-          {mode === "direct" ? (
-            directResult ? (
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Prix de vente</span><span style={monoFont}>{fmt(directResult.sp)} DHS</span></div>
-                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Commission ({rate}%)</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(directResult.commissionAmount)} DHS</span></div>
-                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Frais de service</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(svc)} DHS</span></div>
-                <div className="flex justify-between border-t pt-2" style={{ borderColor: C.border }}><span style={{ color: C.ink }}>Net reçu</span><span style={monoFont}>{fmt(directResult.net)} DHS</span></div>
-                <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Coût du produit</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(c)} DHS</span></div>
-                <div className="flex justify-between border-t pt-2" style={{ borderColor: C.border }}>
-                  <span style={{ ...displayFont, color: C.ink }} className="italic">Profit final</span>
-                  <span style={{ ...displayFont, color: directResult.profit >= 0 ? C.success : C.danger }} className="text-xl italic">{fmt(directResult.profit)} DHS</span>
-                </div>
-              </div>
-            ) : (
-              <p className="text-sm" style={{ color: C.inkSoft }}>Entre un prix de vente pour voir le résultat.</p>
-            )
-          ) : reverseResult ? (
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between border-b pb-2" style={{ borderColor: C.border }}>
-                <span style={{ ...displayFont, color: C.ink }} className="italic">Prix à fixer sur leur site</span>
-                <span style={{ ...displayFont, color: C.accent }} className="text-xl italic">{fmt(reverseResult.sp)} DHS</span>
-              </div>
-              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Commission ({rate}%)</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(reverseResult.commissionAmount)} DHS</span></div>
-              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Frais de service</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(svc)} DHS</span></div>
-              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Net reçu</span><span style={monoFont}>{fmt(reverseResult.net)} DHS</span></div>
-              <div className="flex justify-between"><span style={{ color: C.inkSoft }}>Coût du produit</span><span style={{ ...monoFont, color: C.danger }}>−{fmt(c)} DHS</span></div>
-              <div className="flex justify-between border-t pt-2" style={{ borderColor: C.border }}>
-                <span style={{ color: C.ink }}>Profit obtenu</span>
-                <span style={{ ...monoFont, color: C.success }}>{fmt(reverseResult.profit)} DHS</span>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Entre le profit que tu veux garder pour voir le prix à fixer.</p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Aujourd'hui : vue unifiée des tâches du jour ----------
-function Aujourdhui({ db, setTab, session }) {
-  const todayStr = today();
-  const daysUntil = (d) => Math.floor((new Date(d) - new Date(todayStr)) / 86400000);
-  const isAdmin = session && session.role === "admin";
-
-  const colisEnCours = db.deliveryNotes.filter((b) => {
-    const statuses = b.items.map((i) => i.status || b.status || "attente");
-    return !statuses.every((s) => s === "livre") && !statuses.every((s) => s === "echec");
-  });
-
-  const echeances = db.cheques
-    .filter((c) => c.status === "pending")
-    .map((c) => ({ label: `Chèque ${c.number} (${c.type === "received" ? "reçu de" : "à payer à"} ${c.party})`, amount: c.amount, days: daysUntil(c.dueDate) }))
-    .filter((e) => e.days <= 7)
-    .sort((a, b) => a.days - b.days);
-
-  const clientsToRemind = (db.clients || [])
-    .filter((c) => (c.balanceDue || 0) > 0 && (c.paymentMode === "hebdo" || c.paymentMode === "10j"))
-    .sort((a, b) => (b.balanceDue || 0) - (a.balanceDue || 0));
-
-  const rupture = db.products.filter((p) => productQty(p) <= 0);
-
-  const chargesToRemind = isAdmin
-    ? (db.recurringCharges || [])
-        .map((c) => ({ ...c, days: daysUntil(c.nextDueDate) }))
-        .filter((c) => c.days <= 5)
-        .sort((a, b) => a.days - b.days)
-    : [];
-
-  const sections = [
-    {
-      title: "Colis à suivre",
-      icon: ClipboardList,
-      count: colisEnCours.length,
-      tab: "livraison",
-      empty: "Tous les colis sont réglés — rien à suivre 👍",
-      items: colisEnCours.slice(0, 6).map((b) => ({ label: `${b.number} — ${b.client}`, sub: `${b.items.length} article(s) · ${fmt(b.montant || 0)} DHS` })),
-    },
-    {
-      title: "Échéances (7 jours)",
-      icon: Landmark,
-      count: echeances.length,
-      tab: "cheques",
-      empty: "Aucune échéance de chèque dans les 7 prochains jours.",
-      items: echeances.slice(0, 6).map((e) => ({ label: e.label, sub: `${fmt(e.amount)} DHS · ${e.days < 0 ? `en retard (${Math.abs(e.days)} j)` : e.days === 0 ? "aujourd'hui" : `dans ${e.days} j`}` })),
-    },
-    ...(isAdmin
-      ? [
-          {
-            title: "Charges à payer",
-            icon: PackagePlus,
-            count: chargesToRemind.length,
-            tab: "charges",
-            empty: "Aucune charge récurrente à payer bientôt.",
-            items: chargesToRemind.slice(0, 6).map((c) => ({ label: c.label, sub: `${fmt(c.amount)} DHS · ${c.days < 0 ? `en retard (${Math.abs(c.days)} j)` : c.days === 0 ? "aujourd'hui" : `dans ${c.days} j`}` })),
-          },
-        ]
-      : []),
-    {
-      title: "Clients à relancer",
-      icon: MessageCircle,
-      count: clientsToRemind.length,
-      tab: "clients",
-      empty: "Aucun rappel de paiement pour l'instant.",
-      items: clientsToRemind.slice(0, 6).map((c) => ({ label: c.name, sub: `${fmt(c.balanceDue)} DHS · ${PAYMENT_MODE_LABELS[c.paymentMode]}` })),
-    },
-    {
-      title: "Ruptures de stock",
-      icon: AlertTriangle,
-      count: rupture.length,
-      tab: "stock",
-      empty: "Aucune rupture de stock.",
-      items: rupture.slice(0, 6).map((p) => ({ label: p.name, sub: "Stock épuisé" })),
-    },
-  ];
-
-  const totalTasks = sections.reduce((s, x) => s + x.count, 0);
-
-  return (
-    <div>
-      <SectionTitle eyebrow={today()} title="Aujourd'hui" />
-      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
-        {totalTasks === 0 ? "Rien d'urgent aujourd'hui — tout est sous contrôle 🎉" : `${totalTasks} élément(s) à ton attention.`}
-      </p>
-      <div className="grid md:grid-cols-2 gap-6">
-        {sections.map((sec) => (
-          <div key={sec.title} className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-            <button onClick={() => setTab(sec.tab)} className="flex items-center justify-between w-full mb-4 text-left">
-              <div className="flex items-center gap-2" style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>
-                <sec.icon size={13} /> <span className="uppercase tracking-widest">{sec.title}</span>
-              </div>
-              {sec.count > 0 && (
-                <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: C.accentSoft, color: "#8A6D00", ...monoFont }}>{sec.count}</span>
-              )}
-            </button>
-            {sec.items.length === 0 ? (
-              <p className="text-sm" style={{ color: C.inkSoft }}>{sec.empty}</p>
-            ) : (
-              <ul className="space-y-2">
-                {sec.items.map((it, idx) => (
-                  <li key={idx} className="flex justify-between text-sm">
-                    <span style={{ color: C.ink }}>{it.label}</span>
-                    <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{it.sub}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Caisse quotidienne ----------
-function Caisse({ db, persist, notify, log }) {
-  const todayStr = today();
-  const todayRecord = (db.cashRegister || []).find((r) => r.date === todayStr);
-  const [opening, setOpening] = useState("");
-  const [closing, setClosing] = useState("");
-
-  const cashSalesToday = db.sales
-    .filter((s) => !s.returned && s.payment === "cash" && s.date === todayStr)
-    .reduce((s, x) => s + x.total, 0);
-
-  const theoretical = todayRecord ? (todayRecord.opening || 0) + cashSalesToday : null;
-
-  const openRegister = () => {
-    const amount = Number(opening);
-    if (isNaN(amount) || amount < 0) return notify("Montant invalide");
-    const record = { id: uid(), date: todayStr, opening: amount, closing: null, theoretical: null, ecart: null };
-    persist({ ...db, cashRegister: [...(db.cashRegister || []), record] });
-    if (log) log("ouverture_caisse", "cashRegister", record.id, { montant: amount });
-    notify(`Caisse ouverte avec ${fmt(amount)} DHS`);
-  };
-
-  const closeRegister = () => {
-    const amount = Number(closing);
-    if (isNaN(amount) || amount < 0) return notify("Montant invalide");
-    const theo = (todayRecord.opening || 0) + cashSalesToday;
-    const ecart = amount - theo;
-    const cashRegister = db.cashRegister.map((r) => (r.id === todayRecord.id ? { ...r, closing: amount, theoretical: theo, ecart } : r));
-    persist({ ...db, cashRegister });
-    if (log) log("cloture_caisse", "cashRegister", todayRecord.id, { compte: amount, theorique: theo, ecart });
-    setClosing("");
-    notify(ecart === 0 ? "Caisse clôturée — aucun écart 👍" : `Caisse clôturée — écart de ${fmt(ecart)} DHS`);
-  };
-
-  const history = [...(db.cashRegister || [])].filter((r) => r.date !== todayStr).reverse();
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Trésorerie" title="Caisse quotidienne" />
-
-      <div className="rounded-xl border p-6 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
-        {!todayRecord ? (
-          <>
-            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Ouverture de caisse — {todayStr}</div>
-            <p className="text-sm mb-4" style={{ color: C.inkSoft }}>Compte l'argent liquide présent dans la caisse ce matin, avant toute vente.</p>
-            <div className="flex items-end gap-3">
-              <Field label="Fond de caisse (DHS)">
-                <input type="number" className={inputClass} style={inputStyle} value={opening} onChange={(e) => setOpening(e.target.value)} placeholder="Ex: 500" />
-              </Field>
-              <button onClick={openRegister} className="px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
-                Ouvrir la caisse
-              </button>
-            </div>
-          </>
-        ) : todayRecord.closing === null ? (
-          <>
-            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Caisse ouverte — {todayStr}</div>
-            <div className="grid sm:grid-cols-3 gap-4 mb-5">
-              <div>
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Fond de départ</div>
-                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.opening)} DHS</div>
-              </div>
-              <div>
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Ventes comptant aujourd'hui</div>
-                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(cashSalesToday)} DHS</div>
-              </div>
-              <div>
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Théorique actuel</div>
-                <div style={{ ...displayFont, color: C.accent }} className="text-xl italic">{fmt(theoretical)} DHS</div>
-              </div>
-            </div>
-            <div className="flex items-end gap-3 border-t pt-5" style={{ borderColor: C.border }}>
-              <Field label="Comptage réel en fin de journée (DHS)">
-                <input type="number" className={inputClass} style={inputStyle} value={closing} onChange={(e) => setClosing(e.target.value)} placeholder="Ex: 1250" />
-              </Field>
-              <button onClick={closeRegister} className="px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.danger }}>
-                Clôturer la caisse
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Caisse clôturée — {todayStr}</div>
-            <div className="grid sm:grid-cols-4 gap-4">
-              <div>
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Fond de départ</div>
-                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.opening)} DHS</div>
-              </div>
-              <div>
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Théorique</div>
-                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.theoretical)} DHS</div>
-              </div>
-              <div>
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Compté réel</div>
-                <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(todayRecord.closing)} DHS</div>
-              </div>
-              <div>
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Écart</div>
-                <div style={{ ...monoFont, color: todayRecord.ecart === 0 ? C.success : C.danger }} className="text-lg">
-                  {todayRecord.ecart > 0 ? "+" : ""}{fmt(todayRecord.ecart)} DHS
-                </div>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique</div>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Fond de départ</td><td className="px-4 py-3">Théorique</td><td className="px-4 py-3">Compté</td><td className="px-4 py-3">Écart</td>
-            </tr>
-          </thead>
-          <tbody>
-            {history.map((r) => (
-              <tr key={r.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={monoFont}>{r.date}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(r.opening)} DHS</td>
-                <td className="px-4 py-3" style={monoFont}>{r.theoretical !== null ? fmt(r.theoretical) + " DHS" : "—"}</td>
-                <td className="px-4 py-3" style={monoFont}>{r.closing !== null ? fmt(r.closing) + " DHS" : "—"}</td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: r.ecart === 0 ? C.success : r.ecart > 0 ? C.success : C.danger }}>
-                  {r.ecart === null ? "—" : (r.ecart > 0 ? "+" : "") + fmt(r.ecart) + " DHS"}
-                </td>
-              </tr>
-            ))}
-            {history.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun historique pour l'instant.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Commandes en ligne (issues du site public) ----------
-function CommandesEnLigne({ db, persist, notify, log, session }) {
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [selected, setSelected] = useState({});
-
-  const load = async () => {
-    setLoading(true);
-    setOrders(await sbFetchOnlineOrders(session));
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const updateStatus = async (order, status) => {
-    await sbUpdateOrderStatus(session, order.id, status);
-    setOrders((list) => list.map((o) => (o.id === order.id ? { ...o, status } : o)));
-    if (log) log("update_commande_ligne", "online_orders", order.id, { status });
-
-    let products = db.products;
-    let clients = db.clients;
-
-    // Confirmer une commande décrémente le stock correspondant côté Electrolik
-    // et attribue des points de fidélité au client (retrouvé ou créé via son téléphone)
-    if (status === "confirmee" && order.status !== "confirmee") {
-      (order.items || []).forEach((i) => {
-        products = adjustStock(products, i.product_id, null, -i.qty);
-      });
-      const phoneNorm = (order.client_phone || "").replace(/[\s.\-()]/g, "");
-      let existing = clients.find((c) => (c.phone || "").replace(/[\s.\-()]/g, "") === phoneNorm && phoneNorm);
-      const earnedPoints = Math.floor((order.total || 0) / 10);
-      if (existing) {
-        clients = clients.map((c) => (c.id === existing.id ? { ...c, loyaltyPoints: (c.loyaltyPoints || 0) + earnedPoints } : c));
-      } else if (phoneNorm) {
-        clients = [...clients, { id: uid(), name: order.client_name, phone: order.client_phone, paymentMode: "surplace", balanceDue: 0, loyaltyPoints: earnedPoints }];
-      }
-    }
-
-    const nextDb = { ...db, products, clients };
-    persist(nextDb);
-    // Remet à jour le stock réservé visible sur le site (évite la survente)
-    if (session) {
-      const freshOrders = orders.map((o) => (o.id === order.id ? { ...o, status } : o));
-      sbSyncPublicProducts(session, products, nextDb.sales, freshOrders);
-    }
-  };
-
-  const printOrderInvoice = (o) => {
-    const company = db.company || {};
-    const rowsHtml = (o.items || [])
-      .map(
-        (i) => `<tr>
-          <td style="padding:6px 0;">${i.name}</td>
-          <td style="padding:6px 0;text-align:center;">${i.qty}</td>
-          <td style="padding:6px 0;text-align:right;">${fmt(i.price)} DHS</td>
-          <td style="padding:6px 0;text-align:right;">${fmt(i.price * i.qty)} DHS</td>
-        </tr>`
-      )
-      .join("");
-    const html = `
-      <html>
-        <head>
-          <title>Facture — ${o.client_name}</title>
-          <style>
-            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 720px; margin: auto; }
-            h1 { font-style: italic; margin-bottom: 0; }
-            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
-            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-            th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
-            th:nth-child(2) { text-align: center; } th:nth-child(3), th:nth-child(4) { text-align: right; }
-            tr td { border-bottom: 1px solid #EEE; }
-            .total { text-align: right; margin-top: 14px; font-size: 22px; font-style: italic; }
-          </style>
-        </head>
-        <body>
-          <h1>${company.name || "Electrolik"}</h1>
-          <div class="muted" style="margin-top:12px;">Facture — Commande en ligne</div>
-          <p>
-            Client : ${o.client_name}<br/>
-            Téléphone : ${o.client_phone}<br/>
-            Adresse : ${o.client_address}, ${o.client_city}<br/>
-            Date : ${new Date(o.created_at).toLocaleDateString("fr-FR")}
-          </p>
-          <table>
-            <thead><tr><th>Article</th><th>Qté</th><th>PU</th><th>Total</th></tr></thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-          <div class="total">Total à payer à la livraison : ${fmt(o.total)} DHS</div>
-        </body>
-      </html>`;
-    const w = window.open("", "_blank");
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
-
-  const sendWhatsappConfirmation = (o) => {
-    let phone = o.client_phone.replace(/[\s.\-()]/g, "");
-    if (phone.startsWith("0")) phone = "212" + phone.slice(1);
-    else if (!phone.startsWith("212")) phone = "212" + phone;
-    const itemsList = (o.items || []).map((i) => `- ${i.name} x${i.qty}`).join("\n");
-    const msg = `Bonjour ${o.client_name}, votre commande Electrolik est confirmée ✅\n\n${itemsList}\n\nTotal à payer à la livraison : ${fmt(o.total)} DHS\n\nMerci de votre confiance !`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
-  };
-
-  const toggleSelect = (id) => setSelected((s) => ({ ...s, [id]: !s[id] }));
-  const selectAll = () => {
-    const allSelected = orders.every((o) => selected[o.id]);
-    const next = {};
-    orders.forEach((o) => (next[o.id] = !allSelected));
-    setSelected(next);
-  };
-  const selectedCount = Object.values(selected).filter(Boolean).length;
-
-  const exportForDelivery = () => {
-    const toExport = orders.filter((o) => selected[o.id]);
-    if (toExport.length === 0) return notify("Sélectionnez au moins une commande à exporter");
-    const rows = toExport.map((o) => ({
-      "CODE SUIVI": "",
-      DESTINATAIRE: o.client_name,
-      TELEPHONE: o.client_phone,
-      ADRESSE: o.client_address,
-      PRIX: o.total,
-      VILLE: o.client_city,
-      COMMENTAIRE: "Paiement à la livraison",
-      QUARTIER: "",
-      PRODUIT: (o.items || []).map((i) => `${i.name} x${i.qty}`).join(", "),
-      "VALEUR DECLAREE": o.total,
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows, {
-      header: ["CODE SUIVI", "DESTINATAIRE", "TELEPHONE", "ADRESSE", "PRIX", "VILLE", "COMMENTAIRE", "QUARTIER", "PRODUIT", "VALEUR DECLAREE"],
-    });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Colis");
-    XLSX.writeFile(wb, `commandes-livraison-${today()}.xlsx`);
-    notify(`${toExport.length} commande(s) exportée(s) au format société de livraison`);
-  };
-
-  const statusLabels = { nouvelle: "Nouvelle", confirmee: "Confirmée", expediee: "Expédiée", annulee: "Annulée" };
-  const statusColors = { nouvelle: C.accent, confirmee: C.success, expediee: C.inkSoft, annulee: C.danger };
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Boutique en ligne"
-        title="Commandes en ligne"
-        action={
-          <div className="flex gap-2">
-            <button onClick={exportForDelivery} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-              <Download size={13} /> Exporter (modèle livraison){selectedCount > 0 ? ` — ${selectedCount}` : ""}
-            </button>
-            <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
-              <RotateCcw size={13} /> Actualiser
-            </button>
-          </div>
-        }
-      />
-      <p className="text-sm mb-4" style={{ color: C.inkSoft }}>
-        Commandes passées sur le site web. Coche celles à envoyer, puis exporte un fichier Excel prêt à importer sur la plateforme de la société de livraison.
-      </p>
-      {orders.length > 0 && (
-        <button onClick={selectAll} className="text-xs mb-4 px-3 py-1.5 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
-          {orders.every((o) => selected[o.id]) ? "Tout désélectionner" : "Tout sélectionner"}
-        </button>
-      )}
-
-      {loading ? (
-        <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
-      ) : orders.length === 0 ? (
-        <div className="text-center py-16 text-sm" style={{ color: C.inkSoft }}>Aucune commande pour l'instant.</div>
-      ) : (
-        <div className="space-y-4">
-          {orders.map((o) => (
-            <div key={o.id} className="rounded-xl border p-5 flex gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
-              <input type="checkbox" checked={!!selected[o.id]} onChange={() => toggleSelect(o.id)} className="mt-1.5 shrink-0" />
-              <div className="flex-1">
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                <div>
-                  <div style={{ ...displayFont, color: C.ink }} className="text-lg italic">{o.client_name}</div>
-                  <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{new Date(o.created_at).toLocaleString("fr-FR")}</div>
-                </div>
-                <span
-                  className="text-[11px] px-2.5 py-1 rounded-full"
-                  style={{ ...monoFont, background: statusColors[o.status] + "22", color: statusColors[o.status] }}
-                >
-                  {statusLabels[o.status] || o.status}
-                </span>
-              </div>
-
-              <div className="grid sm:grid-cols-2 gap-4 mb-4">
-                <div className="rounded-md p-3" style={{ background: C.paper }}>
-                  <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Coordonnées (pour la livraison)</div>
-                  <div className="text-sm" style={{ color: C.ink }}>{o.client_name}</div>
-                  <div className="text-sm" style={{ color: C.ink }}>{o.client_phone}</div>
-                  <div className="text-sm" style={{ color: C.ink }}>{o.client_address}, {o.client_city}</div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(`${o.client_name}\n${o.client_phone}\n${o.client_address}, ${o.client_city}\nMontant COD: ${fmt(o.total)} DHS`);
-                      notify("Coordonnées copiées");
-                    }}
-                    className="text-xs mt-2 px-2 py-1 rounded-md border"
-                    style={{ borderColor: C.border, color: C.inkSoft }}
-                  >
-                    Copier pour la société de livraison
-                  </button>
-                </div>
-                <div className="rounded-md p-3" style={{ background: C.paper }}>
-                  <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Articles</div>
-                  {(o.items || []).map((i, idx) => (
-                    <div key={idx} className="flex justify-between text-sm">
-                      <span style={{ color: C.ink }}>{i.name} × {i.qty}</span>
-                      <span style={monoFont}>{fmt(i.price * i.qty)} DHS</span>
-                    </div>
-                  ))}
-                  <div className="flex justify-between text-sm mt-2 pt-2 border-t" style={{ borderColor: C.border }}>
-                    <span style={{ color: C.ink }}>Total (COD)</span>
-                    <span style={{ ...monoFont, color: C.ink }}>{fmt(o.total)} DHS</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-2 flex-wrap">
-                {o.status === "nouvelle" && (
-                  <button onClick={() => updateStatus(o, "confirmee")} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                    Confirmer (décrémenter le stock)
-                  </button>
-                )}
-                {o.status === "confirmee" && (
-                  <button onClick={() => updateStatus(o, "expediee")} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.inkSoft, color: C.inkSoft }}>
-                    Marquer expédiée
-                  </button>
-                )}
-                {o.status !== "annulee" && o.status !== "expediee" && (
-                  <button onClick={() => updateStatus(o, "annulee")} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
-                    Annuler
-                  </button>
-                )}
-                <button onClick={() => printOrderInvoice(o)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
-                  <Printer size={12} /> Facture PDF
-                </button>
-                <button onClick={() => sendWhatsappConfirmation(o)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: "#25D366" }}>
-                  <MessageCircle size={12} /> Confirmer par WhatsApp
-                </button>
-              </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------- Modération des avis clients ----------
-function AvisClients({ db, notify, log, session }) {
-  const [reviews, setReviews] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    setLoading(true);
-    setReviews(await sbFetchAllReviews(session));
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const removeReview = async (r) => {
-    const ok = await sbDeleteReview(session, r.id);
-    if (ok) {
-      setReviews((list) => list.filter((x) => x.id !== r.id));
-      if (log) log("delete_review", "product_reviews", r.id, { client: r.client_name });
-      notify("Avis supprimé");
-    } else {
-      notify("Échec de la suppression");
-    }
-  };
-
-  const productName = (productId) => {
-    const p = db.products.find((x) => x.id === productId);
-    return p ? p.name : productId;
-  };
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Boutique en ligne"
-        title="Avis clients"
-        action={
-          <button onClick={load} className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
-            <RotateCcw size={13} /> Actualiser
-          </button>
-        }
-      />
-      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
-        Modère les avis laissés par les visiteurs sur le site — supprime tout avis inapproprié ou indésirable.
-      </p>
-
-      {loading ? (
-        <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
-      ) : reviews.length === 0 ? (
-        <div className="text-center py-16 text-sm" style={{ color: C.inkSoft }}>Aucun avis pour l'instant.</div>
-      ) : (
-        <div className="space-y-3">
-          {reviews.map((r) => (
-            <div key={r.id} className="rounded-xl border p-4 flex items-start justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span style={{ color: C.ink }} className="text-sm">{r.client_name}</span>
-                  <span style={{ ...monoFont, color: C.accent, fontSize: 11 }}>{"★".repeat(r.rating)}{"☆".repeat(5 - r.rating)}</span>
-                </div>
-                <div className="text-xs mb-1" style={{ color: C.inkSoft }}>Produit : {productName(r.product_id)}</div>
-                {r.comment && <p className="text-sm" style={{ color: C.ink }}>{r.comment}</p>}
-                <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="mt-1">{new Date(r.created_at).toLocaleDateString("fr-FR")}</div>
-              </div>
-              <button onClick={() => removeReview(r)} title="Supprimer cet avis"><Trash2 size={15} color={C.danger} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------- Codes promo ----------
-function CodesPromo({ db, notify, log, session }) {
-  const [promos, setPromos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ code: "", discount_percent: "10", expires_at: "" });
-
-  const load = async () => {
-    setLoading(true);
-    setPromos(await sbFetchPromoCodes(session));
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  const addPromo = async () => {
-    if (!form.code.trim()) return notify("Le code est requis");
-    const ok = await sbCreatePromoCode(session, {
-      code: form.code.trim().toUpperCase(),
-      discount_percent: Number(form.discount_percent) || 0,
-      active: true,
-      expires_at: form.expires_at || null,
-    });
-    if (ok) {
-      if (log) log("create_promo", "promo_codes", form.code, { discount: form.discount_percent });
-      setForm({ code: "", discount_percent: "10", expires_at: "" });
-      notify("Code promo créé");
-      load();
-    } else {
-      notify("Échec de la création (ce code existe peut-être déjà)");
-    }
-  };
-
-  const toggleActive = async (p) => {
-    await sbUpdatePromoCode(session, p.id, { active: !p.active });
-    setPromos((list) => list.map((x) => (x.id === p.id ? { ...x, active: !x.active } : x)));
-  };
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Boutique en ligne" title="Codes promo" />
-      <p className="text-sm mb-6" style={{ color: C.inkSoft }}>
-        Crée des codes de réduction temporaires que les clients peuvent utiliser au moment de payer sur le site.
-      </p>
-
-      <div className="rounded-xl border p-5 mb-8" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau code</div>
-        <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Code">
-            <input className={inputClass} style={inputStyle} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Ex. RAMADAN10" />
-          </Field>
-          <Field label="Réduction (%)">
-            <input type="number" min="0" max="100" className={inputClass} style={inputStyle} value={form.discount_percent} onChange={(e) => setForm({ ...form, discount_percent: e.target.value })} />
-          </Field>
-          <Field label="Expire le (optionnel)">
-            <input type="date" className={inputClass} style={inputStyle} value={form.expires_at} onChange={(e) => setForm({ ...form, expires_at: e.target.value })} />
-          </Field>
-        </div>
-        <button onClick={addPromo} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Plus size={14} /> Créer le code
-        </button>
-      </div>
-
-      {loading ? (
-        <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
-      ) : promos.length === 0 ? (
-        <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun code promo pour l'instant.</div>
-      ) : (
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-                <td className="px-4 py-3">Code</td><td className="px-4 py-3">Réduction</td><td className="px-4 py-3">Expire le</td><td className="px-4 py-3">Statut</td><td className="px-4 py-3"></td>
-              </tr>
-            </thead>
-            <tbody>
-              {promos.map((p) => (
-                <tr key={p.id} className="border-b" style={{ borderColor: C.border }}>
-                  <td className="px-4 py-3" style={monoFont}>{p.code}</td>
-                  <td className="px-4 py-3" style={monoFont}>{p.discount_percent}%</td>
-                  <td className="px-4 py-3" style={{ color: C.inkSoft }}>{p.expires_at || "—"}</td>
-                  <td className="px-4 py-3">
-                    <span className="text-[10px] px-2 py-0.5 rounded" style={{ ...monoFont, background: p.active ? C.successSoft : C.dangerSoft, color: p.active ? C.success : C.danger }}>
-                      {p.active ? "ACTIF" : "INACTIF"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button onClick={() => toggleActive(p)} className="text-xs px-3 py-1 rounded-md border" style={{ borderColor: C.border, color: C.ink }}>
-                      {p.active ? "Désactiver" : "Activer"}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Stock({ db, persist, notify, log, session, initialQuery }) {
-  const [form, setForm] = useState({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
-  const [q, setQ] = useState(initialQuery || "");
-  const [stockFilter, setStockFilter] = useState("all"); // all | low | out
-  const [editingId, setEditingId] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
-  const [variantForm, setVariantForm] = useState({ color: "", size: "", length: "", qty: "", price: "", costPrice: "" });
-  const [uploading, setUploading] = useState(false);
-  const [showQuickScan, setShowQuickScan] = useState(false);
-  const [quickScanResult, setQuickScanResult] = useState(null); // { found: bool, product, variant, code }
-  const importInputRef = useRef(null);
-
-  const handleQuickScan = (code) => {
-    setShowQuickScan(false);
-    const found = findByCode(db.products, code);
-    setQuickScanResult(found ? { found: true, product: found.product, variant: found.variant } : { found: false, code });
-  };
-
-  const importProductsExcel = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: "array" });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
-        let products = [...db.products];
-        let added = 0, updated = 0, skipped = 0;
-        rows.forEach((r) => {
-          const name = String(r["Produit"] || r["Nom"] || r["Name"] || r["nom"] || "").trim();
-          if (!name) { skipped++; return; }
-          const sku = String(r["SKU"] || r["Sku"] || r["Référence"] || r["Reference"] || "").trim();
-          const barcode = String(r["Code-barres"] || r["Barcode"] || "").trim();
-          const category = String(r["Catégorie"] || r["Categorie"] || r["Category"] || "").trim();
-          const price = Number(r["Prix de vente"] || r["Prix"] || r["Price"] || 0);
-          const costPrice = Number(r["Coût d'achat"] || r["Cout d'achat"] || r["Cout"] || r["CostPrice"] || 0);
-          const qty = Number(r["Quantité"] || r["Quantite"] || r["Qty"] || r["Stock"] || 0);
-          const minQty = Number(r["Seuil min."] || r["Seuil min"] || r["MinQty"] || 5);
-
-          const existing = (sku && products.find((p) => p.sku === sku)) || products.find((p) => p.name.toLowerCase() === name.toLowerCase());
-          if (existing) {
-            products = products.map((p) =>
-              p.id === existing.id
-                ? {
-                    ...p,
-                    name,
-                    category: category || p.category,
-                    price: price || p.price,
-                    costPrice: costPrice || p.costPrice,
-                    qty: r["Quantité"] || r["Quantite"] || r["Qty"] || r["Stock"] ? qty : p.qty,
-                    minQty: minQty || p.minQty,
-                    barcode: barcode || p.barcode,
-                  }
-                : p
-            );
-            updated++;
-          } else {
-            products.push({
-              id: uid(),
-              name,
-              sku: sku || "SKU-" + uid().toUpperCase().slice(0, 5),
-              barcode: barcode || uidBarcode(),
-              category: category || "Général",
-              price,
-              costPrice,
-              qty,
-              minQty: minQty || 5,
-              image: "",
-              variants: [],
-            });
-            added++;
-          }
-        });
-        persist({ ...db, products });
-        if (log) log("import_products", "products", "-", { added, updated, skipped });
-        notify(`Import terminé : ${added} ajouté(s), ${updated} mis à jour${skipped ? `, ${skipped} ligne(s) ignorée(s)` : ""}`);
-      } catch (e) {
-        notify("Fichier Excel invalide ou illisible");
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const handleImageUpload = async (file) => {
-    if (!file) return;
-    setUploading(true);
-    try {
-      const url = await sbUploadProductImage(session, file);
-      setForm((f) => ({ ...f, images: [...(f.images || []), url], image: f.images && f.images.length > 0 ? f.image : url }));
-      notify("Image ajoutée");
-    } catch (e) {
-      notify(e.message || "Échec de l'envoi de l'image");
-    }
-    setUploading(false);
-  };
-
-  const removeImage = (idx) => {
-    setForm((f) => {
-      const images = (f.images || []).filter((_, i) => i !== idx);
-      return { ...f, images, image: images[0] || "" };
-    });
-  };
-
-  const startEdit = (p) => {
-    setEditingId(p.id);
-    setForm({
-      name: p.name,
-      sku: p.sku,
-      barcode: p.barcode || "",
-      category: p.category,
-      price: String(p.price),
-      costPrice: String(p.costPrice || 0),
-      qty: String(p.qty),
-      minQty: String(p.minQty),
-      image: p.image || "",
-      images: p.images && p.images.length > 0 ? p.images : p.image ? [p.image] : [],
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
-  };
-
-  const [savingProduct, setSavingProduct] = useState(false);
-
-  const addProduct = async () => {
-    if (!form.name.trim()) return notify("Le nom du produit est requis");
-    if (!form.price || Number(form.price) <= 0) return notify("Le prix de vente doit être supérieur à 0");
-    if (form.costPrice && Number(form.costPrice) < 0) return notify("Le coût d'achat ne peut pas être négatif");
-    if (form.qty && Number(form.qty) < 0) return notify("La quantité ne peut pas être négative");
-    const images = form.images || [];
-
-    setSavingProduct(true);
-    try {
-      if (editingId) {
-        const before = db.products.find((p) => p.id === editingId);
-        const priceChanged = Number(form.price) !== before.price;
-        const updated = {
-          ...before,
-          name: form.name,
-          sku: form.sku || before.sku,
-          barcode: form.barcode || before.barcode,
-          category: form.category || "Général",
-          price: Number(form.price),
-          costPrice: Number(form.costPrice) || 0,
-          qty: before.variants && before.variants.length > 0 ? before.qty : Number(form.qty) || 0,
-          minQty: Number(form.minQty) || 0,
-          image: images[0] || "",
-          images,
-          priceHistory: priceChanged
-            ? [...(before.priceHistory || []), { date: today(), price: before.price, costPrice: before.costPrice || 0 }]
-            : before.priceHistory || [],
-        };
-        await persist({ ...db, products: db.products.map((p) => (p.id === editingId ? updated : p)) });
-        if (log) log("update_product", "products", editingId, { name: updated.name });
-        cancelEdit();
-        notify(`✅ Produit "${updated.name}" modifié`);
-      } else {
-        const p = {
-          id: uid(),
-          name: form.name,
-          sku: form.sku || "SKU-" + uid().toUpperCase().slice(0, 5),
-          barcode: form.barcode || uidBarcode(),
-          category: form.category || "Général",
-          price: Number(form.price),
-          costPrice: Number(form.costPrice) || 0,
-          qty: Number(form.qty) || 0,
-          minQty: Number(form.minQty) || 0,
-          image: images[0] || "",
-          images,
-          priceHistory: [],
-          variants: [],
-        };
-        await persist({ ...db, products: [...db.products, p] });
-        setForm({ name: "", sku: "", barcode: "", category: "", price: "", costPrice: "", qty: "", minQty: "5", image: "", images: [] });
-        notify(`✅ Produit "${p.name}" ajouté`);
-      }
-    } catch (e) {
-      notify("❌ Échec de l'enregistrement — réessayez");
-    }
-    setSavingProduct(false);
-  };
-
-  const addVariant = (product) => {
-    if (!variantForm.color && !variantForm.size && !variantForm.length) {
-      return notify("Renseignez au moins une couleur, taille ou longueur");
-    }
-    const v = {
-      id: uid(),
-      color: variantForm.color,
-      size: variantForm.size,
-      length: variantForm.length,
-      sku: product.sku + "-" + uid().toUpperCase().slice(0, 4),
-      barcode: uidBarcode(),
-      qty: Number(variantForm.qty) || 0,
-      price: variantForm.price !== "" ? Number(variantForm.price) : null, // null = utilise le prix du produit parent
-      costPrice: variantForm.costPrice !== "" ? Number(variantForm.costPrice) : null,
-    };
-    const variants = [...(product.variants || []), v];
-    const products = db.products.map((p) =>
-      p.id === product.id ? { ...p, variants, qty: variants.reduce((s, x) => s + (x.qty || 0), 0) } : p
-    );
-    persist({ ...db, products });
-    if (log) log("add_variant", "products", product.id, { product: product.name, variant: variantLabel(v) });
-    setVariantForm({ color: "", size: "", length: "", qty: "", price: "", costPrice: "" });
-    notify("Variante ajoutée");
-  };
-
-  const updateVariantPrice = (product, variantId, field, value) => {
-    const variants = (product.variants || []).map((v) =>
-      v.id === variantId ? { ...v, [field]: value === "" ? null : Number(value) } : v
-    );
-    const products = db.products.map((p) => (p.id === product.id ? { ...p, variants } : p));
-    persist({ ...db, products });
-  };
-
-  // Prix/coût effectifs d'une variante : les siens si définis, sinon ceux du produit parent
-  const variantPrice = (product, variant) => (variant && variant.price != null ? variant.price : product.price);
-  const variantCost = (product, variant) => (variant && variant.costPrice != null ? variant.costPrice : product.costPrice);
-
-  const removeVariant = (product, variantId) => {
-    const variants = (product.variants || []).filter((v) => v.id !== variantId);
-    const products = db.products.map((p) =>
-      p.id === product.id ? { ...p, variants, qty: variants.reduce((s, x) => s + (x.qty || 0), 0) } : p
-    );
-    persist({ ...db, products });
-    if (log) log("delete_variant", "products", product.id, { product: product.name });
-  };
-
-  const updateVariantQty = (product, variantId, delta) => {
-    const variants = (product.variants || []).map((v) =>
-      v.id === variantId ? { ...v, qty: Math.max(0, (v.qty || 0) + delta) } : v
-    );
-    const products = db.products.map((p) =>
-      p.id === product.id ? { ...p, variants, qty: variants.reduce((s, x) => s + (x.qty || 0), 0) } : p
-    );
-    persist({ ...db, products });
-  };
-
-  const printLabel = (p, variant) => {
-    const label = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
-    const barcode = variant ? variant.barcode : p.barcode;
-    const price = variant && variant.price != null ? variant.price : p.price;
-    const w = window.open("", "_blank", "width=420,height=320");
-    w.document.write(`
-      <html><head><title>Étiquette ${variant ? variant.sku : p.sku}</title>
-      <style>
-        body { font-family: Inter, sans-serif; text-align: center; padding: 16px; }
-        h3 { margin: 4px 0; }
-        .price { font-size: 20px; font-weight: bold; margin-top: 4px; }
-      </style></head>
-      <body>
-        <h3>${label}</h3>
-        <svg id="bc"></svg>
-        <div class="price">${fmt(price)} DHS</div>
-      </body></html>
-    `);
-    w.document.close();
-    w.onload = () => {
-      JsBarcode(w.document.getElementById("bc"), barcode, { format: "EAN13", width: 2, height: 60, fontSize: 14 });
-      setTimeout(() => w.print(), 200);
-    };
-  };
-
-  const printQrLabel = async (p, variant) => {
-    const label = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
-    const code = variant ? variant.barcode : p.barcode;
-    const price = variant && variant.price != null ? variant.price : p.price;
-    const dataUrl = await QRCode.toDataURL(code, { width: 220, margin: 1 });
-    const w = window.open("", "_blank", "width=320,height=420");
-    w.document.write(`
-      <html><head><title>QR — ${variant ? variant.sku : p.sku}</title>
-      <style>
-        body { font-family: Inter, sans-serif; text-align: center; padding: 16px; }
-        h3 { margin: 4px 0; }
-        img { margin-top: 8px; }
-        .price { font-size: 20px; font-weight: bold; margin-top: 8px; }
-        .code { font-family: monospace; font-size: 11px; color: #666; margin-top: 4px; }
-      </style></head>
-      <body>
-        <h3>${label}</h3>
-        <img src="${dataUrl}" width="200" height="200" />
-        <div class="code">${code}</div>
-        <div class="price">${fmt(price)} DHS</div>
-      </body></html>
-    `);
-    w.document.close();
-    setTimeout(() => w.print(), 300);
-  };
-
-  const togglePublished = async (id) => {
-    const p = db.products.find((x) => x.id === id);
-    const nextPublished = !(p && p.publishedOnline);
-    const nextProducts = db.products.map((x) => (x.id === id ? { ...x, publishedOnline: nextPublished } : x));
-    persist({ ...db, products: nextProducts });
-
-    if (nextPublished && session) {
-      const result = await sbSyncPublicProducts(session, nextProducts, db.sales);
-      if (!result.ok) {
-        notify(`Échec de la publication sur le site : ${result.error || "erreur inconnue"}`);
-        return;
-      }
-    }
-    notify(nextPublished ? `${p ? p.name : "Produit"} publié sur le site ✅` : `${p ? p.name : "Produit"} retiré du site`);
-  };
-
-  const removeProduct = (id) => {
-    const p = db.products.find((x) => x.id === id);
-    const prevDb = db;
-    persist({ ...db, products: db.products.filter((p) => p.id !== id) });
-    if (log && p) log("delete_product", "products", id, { name: p.name });
-    if (p) notify(`Produit "${p.name}" supprimé`, () => persist(prevDb));
-  };
-
-  const updateQty = (id, delta) =>
-    persist({
-      ...db,
-      products: db.products.map((p) => (p.id === id ? { ...p, qty: Math.max(0, p.qty + delta) } : p)),
-    });
-
-  const filtered = db.products
-    .filter((p) => (p.name + p.sku + p.category + (p.barcode || "")).toLowerCase().includes(q.toLowerCase()))
-    .filter((p) => {
-      if (stockFilter === "out") return productQty(p) <= 0;
-      if (stockFilter === "low") return productQty(p) > 0 && productQty(p) <= p.minQty;
-      if (stockFilter === "online") return !!p.publishedOnline;
-      if (stockFilter === "offline") return !p.publishedOnline;
-      return true;
-    });
-  const rupture = db.products.filter((p) => productQty(p) <= 0);
-  const lowStock = db.products.filter((p) => productQty(p) > 0 && productQty(p) <= p.minQty);
-  const onlineCount = db.products.filter((p) => p.publishedOnline).length;
-  const offlineCount = db.products.length - onlineCount;
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Catalogue"
-        title="Stock & produits"
-        action={
-          <div className="text-right">
-            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Produits référencés</div>
-            <div style={{ ...displayFont, color: C.ink }} className="text-xl">{db.products.length}</div>
-          </div>
-        }
-      />
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: editingId ? C.accent : C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
-          {editingId ? "Modifier le produit" : "Nouveau produit"}
-        </div>
-
-        <div className="mb-4">
-          <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Photos ({(form.images || []).length})</div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {(form.images || []).map((img, idx) => (
-              <div key={idx} className="relative w-20 h-20 rounded-md border overflow-hidden shrink-0" style={{ borderColor: C.border }}>
-                <img src={img} alt="" className="w-full h-full object-cover" />
-                {idx === 0 && (
-                  <span className="absolute top-0 left-0 text-[9px] px-1.5 py-0.5" style={{ background: C.accent, color: "#fff" }}>Couverture</span>
-                )}
-                <button
-                  onClick={() => removeImage(idx)}
-                  className="absolute top-0 right-0 w-5 h-5 flex items-center justify-center"
-                  style={{ background: "rgba(0,0,0,0.6)" }}
-                >
-                  <X size={11} color="#fff" />
-                </button>
-              </div>
-            ))}
-            <label
-              className="w-20 h-20 rounded-md border-2 border-dashed flex flex-col items-center justify-center cursor-pointer shrink-0 gap-1"
-              style={{ borderColor: C.border, color: C.inkSoft }}
-            >
-              <Upload size={16} />
-              <span className="text-[10px]">{uploading ? "…" : "Ajouter"}</span>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={uploading}
-                onChange={(e) => handleImageUpload(e.target.files[0])}
-              />
-            </label>
-          </div>
-          <p className="text-xs mt-2" style={{ color: C.inkSoft }}>La première photo est utilisée comme couverture (étiquettes, vignette du site).</p>
-        </div>
-
-        <div className="grid md:grid-cols-8 gap-3">
-          <Field label="Nom">
-            <input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-          </Field>
-          <Field label="SKU">
-            <input className={inputClass} style={inputStyle} value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value })} placeholder="auto" />
-          </Field>
-          <Field label="Code-barres">
-            <input className={inputClass} style={inputStyle} value={form.barcode} onChange={(e) => setForm({ ...form, barcode: e.target.value })} placeholder="auto (13 chiffres)" />
-          </Field>
-          <Field label="Catégorie">
-            <input className={inputClass} style={inputStyle} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
-          </Field>
-          <Field label="Coût d'achat (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={form.costPrice} onChange={(e) => setForm({ ...form, costPrice: e.target.value })} />
-          </Field>
-          <Field label="Prix de vente (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} />
-          </Field>
-          <Field label="Quantité">
-            <input
-              type="number"
-              className={inputClass}
-              style={inputStyle}
-              value={form.qty}
-              disabled={editingId ? (db.products.find((p) => p.id === editingId)?.variants || []).length > 0 : false}
-              onChange={(e) => setForm({ ...form, qty: e.target.value })}
-            />
-          </Field>
-          <Field label="Seuil min.">
-            <input type="number" className={inputClass} style={inputStyle} value={form.minQty} onChange={(e) => setForm({ ...form, minQty: e.target.value })} />
-          </Field>
-        </div>
-        <div className="flex gap-3 mt-4">
-          <button
-            onClick={addProduct}
-            disabled={savingProduct}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white disabled:opacity-60"
-            style={{ background: C.accent }}
-          >
-            {savingProduct ? (
-              <>
-                <RotateCcw size={14} className="animate-spin" /> Enregistrement…
-              </>
-            ) : (
-              <>
-                {editingId ? <Save size={14} /> : <Plus size={14} />} {editingId ? "Enregistrer les modifications" : "Ajouter au catalogue"}
-              </>
-            )}
-          </button>
-          {editingId && (
-            <button onClick={cancelEdit} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.inkSoft }}>
-              Annuler
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <div className="flex items-center gap-3 flex-1 flex-wrap">
-          <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: C.paperCard }}>
-            <Search size={14} color={C.inkSoft} />
-            <input placeholder="Rechercher un produit…" className="w-full outline-none text-sm" value={q} onChange={(e) => setQ(e.target.value)} />
-          </div>
-          <div className="flex items-center gap-1 border rounded-md p-1 flex-wrap" style={{ borderColor: C.border, background: C.paperCard }}>
-            {[
-              { id: "all", label: "Tous" },
-              { id: "low", label: `Stock bas (${lowStock.length})` },
-              { id: "out", label: `Rupture (${rupture.length})` },
-              { id: "online", label: `En ligne (${onlineCount})` },
-              { id: "offline", label: `Pas en ligne (${offlineCount})` },
-            ].map((f) => (
-              <button
-                key={f.id}
-                onClick={() => setStockFilter(f.id)}
-                className="text-xs px-3 py-1.5 rounded"
-                style={{
-                  background: stockFilter === f.id ? C.accent : "transparent",
-                  color:
-                    stockFilter === f.id
-                      ? "#fff"
-                      : f.id === "out"
-                      ? C.danger
-                      : f.id === "low"
-                      ? "#B08900"
-                      : f.id === "online"
-                      ? C.success
-                      : C.inkSoft,
-                }}
-              >
-                {f.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowQuickScan(true)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
-          >
-            <QrCode size={14} /> Scanner rapide
-          </button>
-          <input
-            type="file"
-            ref={importInputRef}
-            accept=".xlsx,.xls,.csv"
-            style={{ display: "none" }}
-            onChange={(e) => {
-              importProductsExcel(e.target.files[0]);
-              e.target.value = "";
-            }}
-          />
-          <button
-            onClick={() => importInputRef.current && importInputRef.current.click()}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
-          >
-            <Upload size={14} /> Importer (Excel)
-          </button>
-          <button
-            onClick={() => {
-              const rows = [];
-              db.products.forEach((p) => {
-                if (p.variants && p.variants.length > 0) {
-                  p.variants.forEach((v) => {
-                    rows.push({
-                      Produit: p.name, Variante: variantLabel(v), SKU: v.sku, "Code-barres": v.barcode,
-                      Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
-                      Quantité: v.qty, "Seuil min.": p.minQty,
-                      Statut: v.qty <= 0 ? "Rupture" : v.qty <= p.minQty ? "Stock bas" : "OK",
-                    });
-                  });
-                } else {
-                  rows.push({
-                    Produit: p.name, Variante: "", SKU: p.sku, "Code-barres": p.barcode || "",
-                    Catégorie: p.category, "Coût d'achat": p.costPrice || 0, "Prix de vente": p.price,
-                    Quantité: p.qty, "Seuil min.": p.minQty,
-                    Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
-                  });
-                }
-              });
-              const ws = XLSX.utils.json_to_sheet(rows);
-              const wb = XLSX.utils.book_new();
-              XLSX.utils.book_append_sheet(wb, ws, "Stock");
-              XLSX.writeFile(wb, `stock-complet-${today()}.xlsx`);
-              notify("Export Excel téléchargé");
-            }}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
-          >
-            <Download size={14} /> Exporter (Excel)
-          </button>
-        </div>
-      </div>
-
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b" >
-              <td className="px-4 py-3" style={{ borderColor: C.border }}></td>
-              <td className="px-4 py-3">Produit</td>
-              <td className="px-4 py-3">SKU / Code-barres</td>
-              <td className="px-4 py-3">Catégorie</td>
-              <td className="px-4 py-3">Coût</td>
-              <td className="px-4 py-3">Prix</td>
-              <td className="px-4 py-3">Marge</td>
-              <td className="px-4 py-3">Stock</td>
-              <td className="px-4 py-3"></td>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p) => {
-              const hasVariants = p.variants && p.variants.length > 0;
-              const qty = productQty(p);
-              const margin = p.price - (p.costPrice || 0);
-              const marginPct = p.price ? Math.round((margin / p.price) * 100) : 0;
-              const rupture = qty <= 0;
-              const low = !rupture && qty <= p.minQty;
-              const expanded = expandedId === p.id;
-              return (
-                <React.Fragment key={p.id}>
-                  <tr className="border-b" style={{ borderColor: C.border }}>
-                    <td className="px-4 py-3">
-                      <div className="w-9 h-9 rounded border flex items-center justify-center overflow-hidden" style={{ borderColor: C.border, background: C.paper }}>
-                        {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={14} color={C.inkSoft} />}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3" style={{ color: C.ink }}>
-                      {p.name}
-                      {hasVariants && (
-                        <button
-                          onClick={() => setExpandedId(expanded ? null : p.id)}
-                          className="ml-2 text-[10px] px-1.5 py-0.5 rounded"
-                          style={{ background: C.accentSoft, color: C.accent }}
-                        >
-                          {p.variants.length} variante{p.variants.length > 1 ? "s" : ""} {expanded ? "▲" : "▼"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div style={monoFont}>{p.sku}</div>
-                      <div style={{ ...monoFont, color: C.inkSoft, fontSize: 10 }}>{p.barcode}</div>
-                    </td>
-                    <td className="px-4 py-3" style={{ color: C.inkSoft }}>{p.category}</td>
-                    <td className="px-4 py-3" style={{ ...monoFont, color: C.inkSoft }}>{fmt(p.costPrice || 0)} DHS</td>
-                    <td className="px-4 py-3" style={monoFont}>{fmt(p.price)} DHS</td>
-                    <td className="px-4 py-3" style={{ ...monoFont, color: margin >= 0 ? C.success : C.danger }}>{fmt(margin)} DHS · {marginPct}%</td>
-                    <td className="px-4 py-3">
-                      {hasVariants ? (
-                        <div className="flex items-center gap-2">
-                          <span style={{ ...monoFont, color: rupture ? C.danger : low ? "#B4813A" : C.ink }}>{qty} (total)</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => updateQty(p.id, -1)} className="w-6 h-6 rounded border flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={12} /></button>
-                          <span style={{ ...monoFont, color: rupture ? C.danger : low ? "#B4813A" : C.ink }}>{qty}</span>
-                          <button onClick={() => updateQty(p.id, 1)} className="w-6 h-6 rounded border flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={12} /></button>
-                        </div>
-                      )}
-                      {rupture && <span className="text-[10px] px-1.5 py-0.5 rounded mt-1 inline-block" style={{ background: C.dangerSoft, color: C.danger }}>RUPTURE</span>}
-                      {low && <span className="text-[10px] px-1.5 py-0.5 rounded mt-1 inline-block" style={{ background: "#F5E7D3", color: "#B4813A" }}>BAS</span>}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => setExpandedId(expanded ? null : p.id)} title="Variantes"><Layers size={14} color={C.accent} /></button>
-                        <button onClick={() => startEdit(p)} title="Modifier"><Pencil size={14} color={C.accent} /></button>
-                        <button onClick={() => printLabel(p)} title="Imprimer l'étiquette (code-barres)"><Printer size={14} color={C.inkSoft} /></button>
-                        <button onClick={() => printQrLabel(p)} title="Imprimer l'étiquette (QR code)"><QrCode size={14} color={C.inkSoft} /></button>
-                        <button
-                          onClick={() => togglePublished(p.id)}
-                          title={p.publishedOnline ? "Retirer du site en ligne" : "Publier sur le site en ligne"}
-                        >
-                          <Globe size={14} color={p.publishedOnline ? C.success : C.inkSoft} />
-                        </button>
-                        <button onClick={() => removeProduct(p.id)}><Trash2 size={14} color={C.danger} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                  {expanded && (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-4" style={{ background: C.paper }}>
-                        {(p.priceHistory || []).length > 0 && (
-                          <div className="mb-5">
-                            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Historique des prix</div>
-                            <div className="flex flex-wrap gap-2">
-                              {[...p.priceHistory].reverse().map((h, idx) => (
-                                <div key={idx} className="text-xs px-2.5 py-1.5 rounded-md border" style={{ borderColor: C.border, background: C.paperCard }}>
-                                  <span style={{ color: C.inkSoft }}>{h.date}</span>
-                                  <span style={{ ...monoFont, color: C.ink }} className="ml-2">{fmt(h.price)} DHS</span>
-                                </div>
-                              ))}
-                              <div className="text-xs px-2.5 py-1.5 rounded-md" style={{ background: C.accentSoft, color: "#8A6D00" }}>
-                                <span style={monoFont}>Actuel : {fmt(p.price)} DHS</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest mb-3">
-                          Variantes de "{p.name}" (couleur / taille / longueur)
-                        </div>
-                        {hasVariants && (
-                          <table className="w-full text-sm mb-4">
-                            <tbody>
-                              {p.variants.map((v) => {
-                                const vRupture = (v.qty || 0) <= 0;
-                                return (
-                                  <tr key={v.id} className="border-b" style={{ borderColor: C.border }}>
-                                    <td className="py-2" style={{ color: C.ink }}>{variantLabel(v) || "—"}</td>
-                                    <td className="py-2" style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{v.sku}</td>
-                                    <td className="py-2">
-                                      <div className="flex items-center gap-2">
-                                        <button onClick={() => updateVariantQty(p, v.id, -1)} className="w-6 h-6 rounded border flex items-center justify-center bg-white" style={{ borderColor: C.border }}><Minus size={12} /></button>
-                                        <span style={{ ...monoFont, color: vRupture ? C.danger : C.ink }}>{v.qty}</span>
-                                        <button onClick={() => updateVariantQty(p, v.id, 1)} className="w-6 h-6 rounded border flex items-center justify-center bg-white" style={{ borderColor: C.border }}><Plus size={12} /></button>
-                                      </div>
-                                    </td>
-                                    <td className="py-2">
-                                      <input
-                                        type="number"
-                                        className="w-20 border rounded px-2 py-1 text-xs"
-                                        style={inputStyle}
-                                        value={v.price != null ? v.price : ""}
-                                        placeholder={`${fmt(p.price)}`}
-                                        title="Prix de vente (vide = prix du produit)"
-                                        onChange={(e) => updateVariantPrice(p, v.id, "price", e.target.value)}
-                                      />
-                                    </td>
-                                    <td className="py-2">
-                                      <input
-                                        type="number"
-                                        className="w-20 border rounded px-2 py-1 text-xs"
-                                        style={inputStyle}
-                                        value={v.costPrice != null ? v.costPrice : ""}
-                                        placeholder={`${fmt(p.costPrice || 0)}`}
-                                        title="Coût d'achat (vide = coût du produit)"
-                                        onChange={(e) => updateVariantPrice(p, v.id, "costPrice", e.target.value)}
-                                      />
-                                    </td>
-                                    <td className="py-2 text-right">
-                                      <div className="flex items-center gap-2 justify-end">
-                                        <button onClick={() => printLabel(p, v)} title="Imprimer l'étiquette (code-barres)"><Printer size={13} color={C.inkSoft} /></button>
-                                        <button onClick={() => printQrLabel(p, v)} title="Imprimer l'étiquette (QR code)"><QrCode size={13} color={C.inkSoft} /></button>
-                                        <button onClick={() => removeVariant(p, v.id)}><Trash2 size={13} color={C.danger} /></button>
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        )}
-                        <div className="grid md:grid-cols-6 gap-3 items-end mb-3">
-                          <Field label="Couleur">
-                            <input className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.color} onChange={(e) => setVariantForm({ ...variantForm, color: e.target.value })} placeholder="Ex. Noir" />
-                          </Field>
-                          <Field label="Taille">
-                            <input className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.size} onChange={(e) => setVariantForm({ ...variantForm, size: e.target.value })} placeholder="Ex. M" />
-                          </Field>
-                          <Field label="Longueur">
-                            <input className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.length} onChange={(e) => setVariantForm({ ...variantForm, length: e.target.value })} placeholder="Ex. 1m" />
-                          </Field>
-                          <Field label="Quantité">
-                            <input type="number" className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.qty} onChange={(e) => setVariantForm({ ...variantForm, qty: e.target.value })} />
-                          </Field>
-                          <Field label={`Prix (déf. ${fmt(p.price)})`}>
-                            <input type="number" className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.price} onChange={(e) => setVariantForm({ ...variantForm, price: e.target.value })} placeholder="idem produit" />
-                          </Field>
-                          <Field label={`Coût (déf. ${fmt(p.costPrice || 0)})`}>
-                            <input type="number" className={inputClass} style={{ ...inputStyle, background: C.paperCard }} value={variantForm.costPrice} onChange={(e) => setVariantForm({ ...variantForm, costPrice: e.target.value })} placeholder="idem produit" />
-                          </Field>
-                        </div>
-                        <button onClick={() => addVariant(p)} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
-                          <Plus size={14} /> Ajouter la variante
-                        </button>
-                      </td>
-                    </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun produit trouvé.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {showQuickScan && <CameraScanner onDetected={handleQuickScan} onClose={() => setShowQuickScan(false)} />}
-
-      {quickScanResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(18,24,43,0.85)" }} onClick={() => setQuickScanResult(null)}>
-          <div className="w-full max-w-sm rounded-xl p-6" style={{ background: C.paperCard }} onClick={(e) => e.stopPropagation()}>
-            {quickScanResult.found ? (
-              <>
-                <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Produit trouvé</div>
-                <div style={{ ...displayFont, color: C.ink }} className="text-xl italic mb-1">
-                  {quickScanResult.product.name}{quickScanResult.variant ? ` — ${variantLabel(quickScanResult.variant)}` : ""}
-                </div>
-                <div style={{ ...monoFont, color: C.inkSoft, fontSize: 12 }} className="mb-4">
-                  {quickScanResult.variant ? quickScanResult.variant.sku : quickScanResult.product.sku}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-md p-3" style={{ background: C.paper }}>
-                    <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Prix</div>
-                    <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(quickScanResult.product.price)} DHS</div>
-                  </div>
-                  <div className="rounded-md p-3" style={{ background: C.paper }}>
-                    <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Stock</div>
-                    <div style={{ ...monoFont, color: (quickScanResult.variant ? quickScanResult.variant.qty : quickScanResult.product.qty) <= 0 ? C.danger : C.ink }} className="text-lg">
-                      {quickScanResult.variant ? quickScanResult.variant.qty : quickScanResult.product.qty}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ ...monoFont, fontSize: 11, color: C.danger }} className="uppercase tracking-widest mb-2">Aucun produit trouvé</div>
-                <p className="text-sm" style={{ color: C.inkSoft }}>Code scanné : {quickScanResult.code}</p>
-              </>
-            )}
-            <button onClick={() => setQuickScanResult(null)} className="w-full mt-5 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
-              Fermer
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------- Achats ----------
-// ---------- Import PDF de facture fournisseur (lecture heuristique) ----------
-async function extractPdfRows(file) {
-  const buf = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
-  const rows = [];
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
-    const items = content.items
-      .map((it) => ({ text: it.str, x: it.transform[4], y: it.transform[5] }))
-      .filter((it) => it.text.trim() !== "");
-    const groups = {};
-    items.forEach((it) => {
-      const key = Math.round(it.y / 3) * 3;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(it);
-    });
-    const ys = Object.keys(groups).map(Number).sort((a, b) => b - a);
-    ys.forEach((y) => {
-      const rowItems = groups[y].sort((a, b) => a.x - b.x);
-      const rowText = rowItems.map((it) => it.text).join(" ").replace(/\s+/g, " ").trim();
-      if (rowText) rows.push(rowText);
-    });
-  }
-  return rows;
-}
-
-function parsePdfInvoiceLines(rows) {
-  const candidates = [];
-  rows.forEach((line) => {
-    if (/total|sous.?total|tva|remise|net.?à.?payer|montant\s*ht|montant\s*ttc|^page\s/i.test(line)) return;
-    const numMatches = line.match(/\d+[.,]?\d*/g) || [];
-    const numbers = numMatches.map((n) => parseFloat(n.replace(",", "."))).filter((n) => !isNaN(n));
-    if (numbers.length < 2) return;
-    let designation = line.replace(/\d+[.,]?\d*/g, " ").replace(/\s{2,}/g, " ").trim();
-    if (designation.length < 3) return;
-
-    let qty, unitPrice, total;
-    if (numbers.length >= 3) {
-      total = numbers[numbers.length - 1];
-      unitPrice = numbers[numbers.length - 2];
-      qty = numbers.find((n) => Number.isInteger(n) && n > 0 && n < 10000) || 1;
-      if (unitPrice > 0 && Math.abs(qty * unitPrice - total) > total * 0.05) {
-        qty = Math.max(1, Math.round(total / unitPrice));
-      }
-    } else {
-      qty = 1;
-      unitPrice = numbers[numbers.length - 1];
-    }
-    if (!unitPrice || unitPrice <= 0) return;
-    candidates.push({ designation, qty: qty || 1, unitPrice: Number(unitPrice.toFixed(2)) });
-  });
-  return candidates;
-}
-
-function Achats({ db, persist, notify, log }) {
-  const [form, setForm] = useState({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
-  const [productSearch, setProductSearch] = useState("");
-  const [showProductList, setShowProductList] = useState(false);
-  const useExisting = form.productId !== "";
-  const selectedProduct = useExisting ? db.products.find((p) => p.id === form.productId) : null;
-  const needsVariant = selectedProduct && selectedProduct.variants && selectedProduct.variants.length > 0;
-  const importInputRef = useRef(null);
-  const pdfInputRef = useRef(null);
-  const [pdfReview, setPdfReview] = useState(null);
-  const [pdfLoading, setPdfLoading] = useState(false);
-  const [returnForm, setReturnForm] = useState({ supplierId: "", productId: "", qty: "1", reason: "" });
-
-  const submitSupplierReturn = () => {
-    const supplier = db.suppliers.find((s) => s.id === returnForm.supplierId);
-    const product = db.products.find((p) => p.id === returnForm.productId);
-    const qty = Number(returnForm.qty);
-    if (!supplier || !product || !qty || qty <= 0) return notify("Fournisseur, produit et quantité requis");
-    const currentQty = productQty(product);
-    if (qty > currentQty) return notify(`Quantité invalide — seulement ${currentQty} en stock`);
-
-    const unitCost = product.costPrice || 0;
-    const montant = qty * unitCost;
-    const products = adjustStock(db.products, product.id, null, -qty);
-    const suppliers = db.suppliers.map((s) => (s.id === supplier.id ? { ...s, balanceDue: Math.max(0, (s.balanceDue || 0) - montant) } : s));
-    const record = { id: uid(), date: today(), supplierId: supplier.id, supplierName: supplier.name, productName: product.name, qty, unitCost, montant, reason: returnForm.reason };
-
-    persist({ ...db, products, suppliers, supplierReturns: [...(db.supplierReturns || []), record] });
-    if (log) log("retour_fournisseur", "suppliers", supplier.id, { name: supplier.name, produit: product.name, qty, montant });
-    setReturnForm({ supplierId: "", productId: "", qty: "1", reason: "" });
-    notify(`Retour de ${qty} × ${product.name} enregistré chez ${supplier.name}`);
-  };
-
-  const restockSuggestions = useMemo(() => {
-    const todayStr = today();
-    const since = new Date(todayStr);
-    since.setDate(since.getDate() - 30);
-    const sinceStr = since.toISOString().slice(0, 10);
-    const soldQtyByProduct = {};
-    db.sales.filter((s) => !s.returned && s.date >= sinceStr).forEach((s) => {
-      (s.items || []).forEach((i) => {
-        soldQtyByProduct[i.productId] = (soldQtyByProduct[i.productId] || 0) + i.qty;
-      });
-    });
-    return db.products
-      .map((p) => {
-        const currentQty = productQty(p);
-        const sold30j = soldQtyByProduct[p.id] || 0;
-        const avgPerDay = sold30j / 30;
-        const suggestedQty = Math.max(0, Math.ceil(avgPerDay * 30 - currentQty)); // couverture visée : 30 jours de vente
-        return { ...p, currentQty, sold30j, avgPerDay, suggestedQty };
-      })
-      .filter((p) => (p.currentQty <= p.minQty) && p.suggestedQty > 0)
-      .sort((a, b) => b.sold30j - a.sold30j);
-  }, [db.products, db.sales]);
-
-  const handlePdfFile = async (file) => {
-    if (!file) return;
-    setPdfLoading(true);
-    try {
-      const rows = await extractPdfRows(file);
-      const candidates = parsePdfInvoiceLines(rows);
-      if (candidates.length === 0) {
-        notify("Aucune ligne détectée dans ce PDF — vérifiez le fichier ou utilisez l'import Excel");
-        setPdfLoading(false);
-        return;
-      }
-      setPdfReview({ supplierId: "", supplierName: "", payment: "cash", lines: candidates.map((c) => ({ ...c, include: true })) });
-    } catch (e) {
-      notify("Impossible de lire ce PDF");
-    }
-    setPdfLoading(false);
-  };
-
-  const updatePdfLine = (idx, field, value) => {
-    setPdfReview((r) => ({ ...r, lines: r.lines.map((l, i) => (i === idx ? { ...l, [field]: value } : l)) }));
-  };
-  const removePdfLine = (idx) => setPdfReview((r) => ({ ...r, lines: r.lines.filter((_, i) => i !== idx) }));
-
-  const confirmPdfImport = () => {
-    const supplierLabel = pdfReview.supplierId ? db.suppliers.find((s) => s.id === pdfReview.supplierId)?.name : pdfReview.supplierName.trim();
-    if (!supplierLabel) return notify("Nom du fournisseur requis");
-    const activeLines = pdfReview.lines.filter((l) => l.include && l.designation && Number(l.qty) > 0 && Number(l.unitPrice) > 0);
-    if (activeLines.length === 0) return notify("Aucune ligne valide à importer");
-
-    let products = [...db.products];
-    let suppliers = [...db.suppliers];
-    let supplier = pdfReview.supplierId
-      ? suppliers.find((s) => s.id === pdfReview.supplierId)
-      : suppliers.find((s) => s.name.toLowerCase() === supplierLabel.toLowerCase());
-    if (!supplier) {
-      supplier = { id: uid(), name: supplierLabel, phone: "", balanceDue: 0 };
-      suppliers.push(supplier);
-    }
-    let newPurchases = [];
-    let created = 0, matched = 0;
-    activeLines.forEach((l) => {
-      const qty = Number(l.qty);
-      const unitCost = Number(l.unitPrice);
-      let product = products.find((p) => p.name.toLowerCase() === l.designation.toLowerCase());
-      if (product) {
-        products = adjustStock(products, product.id, null, qty);
-        products = products.map((p) => (p.id === product.id ? { ...p, costPrice: unitCost } : p));
-        matched++;
-      } else {
-        product = { id: uid(), name: l.designation, sku: "SKU-" + uid().toUpperCase().slice(0, 5), barcode: uidBarcode(), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5, variants: [] };
-        products.push(product);
-        created++;
-      }
-      const total = qty * unitCost;
-      if (pdfReview.payment === "credit") {
-        suppliers = suppliers.map((s) => (s.id === supplier.id ? { ...s, balanceDue: (s.balanceDue || 0) + total } : s));
-      }
-      newPurchases.push({ id: uid(), date: today(), productName: product.name, supplier: supplier.name, supplierId: supplier.id, qty, unitCost, total, payment: pdfReview.payment });
-    });
-    persist({ ...db, products, suppliers, purchases: [...db.purchases, ...newPurchases] });
-    if (log) log("import_achats_pdf", "purchases", "-", { lignes: newPurchases.length, created, matched });
-    notify(`Import PDF terminé : ${newPurchases.length} article(s), ${created} nouveau(x) produit(s), stock mis à jour`);
-    setPdfReview(null);
-  };
-
-  const importAchatsExcel = (file) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const wb = XLSX.read(evt.target.result, { type: "array" });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
-
-        let products = [...db.products];
-        let suppliers = [...db.suppliers];
-        let newPurchases = [];
-        let created = 0, matched = 0, skipped = 0;
-
-        rows.forEach((r) => {
-          const supplierName = String(r["Fournisseur"] || r["Supplier"] || "").trim();
-          const productLabel = String(r["Produit"] || r["Product"] || r["SKU"] || "").trim();
-          const qty = Number(r["Quantité"] || r["Quantite"] || r["Qty"] || 0);
-          const unitCost = Number(r["Coût unitaire"] || r["Cout unitaire"] || r["Prix unitaire"] || r["UnitCost"] || 0);
-          const paymentRaw = String(r["Paiement"] || r["Payment"] || "comptant").trim().toLowerCase();
-          const payment = paymentRaw.includes("credit") || paymentRaw.includes("crédit") ? "credit" : "cash";
-
-          if (!supplierName || !productLabel || !qty || !unitCost) { skipped++; return; }
-
-          // Fournisseur : cherche ou crée
-          let supplier = suppliers.find((s) => s.name.toLowerCase() === supplierName.toLowerCase());
-          if (!supplier) {
-            supplier = { id: uid(), name: supplierName, phone: "", balanceDue: 0 };
-            suppliers.push(supplier);
-          }
-
-          // Produit : cherche par SKU ou nom, sinon crée
-          let product = products.find((p) => p.sku.toLowerCase() === productLabel.toLowerCase() || p.name.toLowerCase() === productLabel.toLowerCase());
-          if (product) {
-            products = adjustStock(products, product.id, null, qty);
-            products = products.map((p) => (p.id === product.id ? { ...p, costPrice: unitCost } : p));
-            matched++;
-          } else {
-            product = { id: uid(), name: productLabel, sku: "SKU-" + uid().toUpperCase().slice(0, 5), barcode: uidBarcode(), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5, variants: [] };
-            products.push(product);
-            created++;
-          }
-
-          const total = qty * unitCost;
-          if (payment === "credit") {
-            suppliers = suppliers.map((s) => (s.id === supplier.id ? { ...s, balanceDue: (s.balanceDue || 0) + total } : s));
-          }
-          newPurchases.push({ id: uid(), date: today(), productName: product.name, supplier: supplier.name, supplierId: supplier.id, qty, unitCost, total, payment });
-        });
-
-        persist({ ...db, products, suppliers, purchases: [...db.purchases, ...newPurchases] });
-        if (log) log("import_achats", "purchases", "-", { lignes: newPurchases.length, created, matched, skipped });
-        notify(`Import terminé : ${newPurchases.length} achat(s) enregistré(s) (${created} nouveau(x) produit(s))${skipped ? `, ${skipped} ligne(s) ignorée(s)` : ""}`);
-      } catch (e) {
-        notify("Fichier Excel invalide ou illisible");
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const [saving, setSaving] = useState(false);
-
-  const submit = async () => {
-    const supplierLabel = form.supplierId
-      ? db.suppliers.find((s) => s.id === form.supplierId)?.name
-      : form.supplierName;
-    if (!supplierLabel || !form.qty || !form.unitCost) return notify("Fournisseur, quantité et coût requis");
-    if (Number(form.qty) <= 0) return notify("La quantité doit être supérieure à 0");
-    if (Number(form.unitCost) <= 0) return notify("Le coût unitaire doit être supérieur à 0");
-    if (needsVariant && !form.variantId) return notify("Choisissez la variante à réapprovisionner");
-    if (!useExisting && !form.newName.trim()) return notify("Nom du nouveau produit requis");
-
-    setSaving(true);
-    let products = [...db.products];
-    let productName = "";
-    const qty = Number(form.qty);
-    const unitCost = Number(form.unitCost);
-    const total = qty * unitCost;
-
-    if (useExisting) {
-      const idx = products.findIndex((p) => p.id === form.productId);
-      if (idx === -1) {
-        setSaving(false);
-        return notify("Produit introuvable");
-      }
-      products = adjustStock(products, form.productId, needsVariant ? form.variantId : null, qty);
-      products = products.map((p) =>
-        p.id === form.productId
-          ? needsVariant
-            ? { ...p, variants: p.variants.map((v) => (v.id === form.variantId ? { ...v, costPrice: unitCost } : v)) }
-            : { ...p, costPrice: unitCost }
-          : p
-      );
-      productName = products.find((p) => p.id === form.productId).name;
-      if (needsVariant) {
-        const v = products.find((p) => p.id === form.productId).variants.find((x) => x.id === form.variantId);
-        productName += ` — ${variantLabel(v)}`;
-      }
-    } else {
-      const p = { id: uid(), name: form.newName, sku: "SKU-" + uid().toUpperCase().slice(0, 5), barcode: uidBarcode(), category: "Général", price: Math.round(unitCost * 1.4), costPrice: unitCost, qty, minQty: 5, variants: [] };
-      products.push(p);
-      productName = p.name;
-    }
-
-    let suppliers = [...db.suppliers];
-    let supplierId = form.supplierId;
-    if (!supplierId && supplierLabel) {
-      const newSupplier = { id: uid(), name: supplierLabel, phone: "", balanceDue: 0 };
-      suppliers.push(newSupplier);
-      supplierId = newSupplier.id;
-    }
-    if (form.payment === "credit" && supplierId) {
-      suppliers = suppliers.map((s) => (s.id === supplierId ? { ...s, balanceDue: (s.balanceDue || 0) + total } : s));
-    }
-
-    const purchase = { id: uid(), date: today(), productName, supplier: supplierLabel, supplierId, qty, unitCost, total, payment: form.payment };
-    try {
-      await persist({ ...db, products, suppliers, purchases: [...db.purchases, purchase] });
-      setForm({ productId: "", variantId: "", newName: "", supplierId: "", supplierName: "", qty: "1", unitCost: "", payment: "cash" });
-      notify(`✅ Achat enregistré — stock mis à jour (${productName})`);
-    } catch (e) {
-      notify("❌ Échec de l'enregistrement — réessayez");
-    }
-    setSaving(false);
-  };
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Approvisionnement" title="Achats" />
-
-      {restockSuggestions.length > 0 && (
-        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
-            <TrendingUp size={13} /> Suggestions de réapprovisionnement
-          </div>
-          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-            Basé sur les ventes des 30 derniers jours, pour garder environ 30 jours de couverture de stock.
-          </p>
-          <div className="space-y-2">
-            {restockSuggestions.slice(0, 8).map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-sm py-1.5 border-b" style={{ borderColor: C.border }}>
-                <div>
-                  <span style={{ color: C.ink }}>{p.name}</span>
-                  <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="ml-2">
-                    stock: {p.currentQty} · vendu {p.sold30j} en 30j
-                  </span>
-                </div>
-                <span className="text-xs px-2 py-1 rounded" style={{ ...monoFont, background: C.accentSoft, color: "#8A6D00" }}>
-                  Commander ~{p.suggestedQty}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex justify-end gap-2 mb-3 flex-wrap">
-        <input
-          type="file"
-          ref={pdfInputRef}
-          accept=".pdf"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            handlePdfFile(e.target.files[0]);
-            e.target.value = "";
-          }}
-        />
-        <button
-          onClick={() => pdfInputRef.current && pdfInputRef.current.click()}
-          disabled={pdfLoading}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-          style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
-        >
-          <FileText size={14} /> {pdfLoading ? "Lecture en cours…" : "Importer facture fournisseur (PDF)"}
-        </button>
-        <input
-          type="file"
-          ref={importInputRef}
-          accept=".xlsx,.xls,.csv"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            importAchatsExcel(e.target.files[0]);
-            e.target.value = "";
-          }}
-        />
-        <button
-          onClick={() => importInputRef.current && importInputRef.current.click()}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-          style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
-        >
-          <Upload size={14} /> Importer facture fournisseur (Excel)
-        </button>
-      </div>
-
-      {pdfReview && (
-        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Vérifier avant import (lecture PDF)</div>
-          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-            Lecture automatique du fichier — corrigez les désignations, quantités ou prix si besoin avant de confirmer. Rien n'est ajouté au stock tant que vous n'avez pas cliqué sur "Confirmer".
-          </p>
-          <div className="grid md:grid-cols-3 gap-3 mb-4">
-            <Field label="Fournisseur existant">
-              <select
-                className={inputClass}
-                style={inputStyle}
-                value={pdfReview.supplierId}
-                onChange={(e) => {
-                  const sup = db.suppliers.find((x) => x.id === e.target.value);
-                  setPdfReview((r) => ({ ...r, supplierId: e.target.value, supplierName: sup ? sup.name : r.supplierName }));
-                }}
-              >
-                <option value="">— Nouveau fournisseur —</option>
-                {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
-            </Field>
-            {!pdfReview.supplierId && (
-              <Field label="Nom du fournisseur">
-                <input className={inputClass} style={inputStyle} value={pdfReview.supplierName} onChange={(e) => setPdfReview((r) => ({ ...r, supplierName: e.target.value }))} />
-              </Field>
-            )}
-            <Field label="Paiement">
-              <select className={inputClass} style={inputStyle} value={pdfReview.payment} onChange={(e) => setPdfReview((r) => ({ ...r, payment: e.target.value }))}>
-                <option value="cash">Payé comptant</option>
-                <option value="credit">À crédit (je dois au fournisseur)</option>
-              </select>
-            </Field>
-          </div>
-          <div className="space-y-2 mb-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest" style={{ ...monoFont, color: C.inkSoft }}>
-              <span className="w-5"></span>
-              <span className="flex-1">Désignation</span>
-              <span className="w-20">Qté</span>
-              <span className="w-24">Prix unit.</span>
-              <span className="w-5"></span>
-            </div>
-            {pdfReview.lines.map((l, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <input type="checkbox" checked={l.include} onChange={(e) => updatePdfLine(idx, "include", e.target.checked)} />
-                <input className="flex-1 border rounded-md px-2 py-1.5 text-sm" style={inputStyle} value={l.designation} onChange={(e) => updatePdfLine(idx, "designation", e.target.value)} />
-                <input type="number" className="w-20 border rounded-md px-2 py-1.5 text-sm" style={inputStyle} value={l.qty} onChange={(e) => updatePdfLine(idx, "qty", Number(e.target.value))} />
-                <input type="number" className="w-24 border rounded-md px-2 py-1.5 text-sm" style={inputStyle} value={l.unitPrice} onChange={(e) => updatePdfLine(idx, "unitPrice", Number(e.target.value))} />
-                <button onClick={() => removePdfLine(idx)}><X size={14} color={C.danger} /></button>
-              </div>
-            ))}
-            {pdfReview.lines.length === 0 && (
-              <p className="text-sm" style={{ color: C.inkSoft }}>Toutes les lignes ont été retirées.</p>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <button onClick={confirmPdfImport} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-              <CheckCircle2 size={14} /> Confirmer l'import
-            </button>
-            <button onClick={() => setPdfReview(null)} className="px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.inkSoft }}>
-              Annuler
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvel achat</div>
-        <div className="grid md:grid-cols-6 gap-3">
-          <Field label="Produit existant">
-            <div className="relative">
-              <div className="flex items-center gap-2 border rounded-md px-3 py-2" style={inputStyle}>
-                <Search size={13} color={C.inkSoft} />
-                <input
-                  value={useExisting ? selectedProduct?.name || "" : productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value);
-                    setForm({ ...form, productId: "", variantId: "", newName: e.target.value });
-                    setShowProductList(true);
-                  }}
-                  onFocus={() => setShowProductList(true)}
-                  placeholder="Rechercher par nom, SKU, code-barres…"
-                  className="w-full outline-none text-sm bg-transparent"
-                  style={{ color: C.ink }}
-                />
-                {useExisting && (
-                  <button onClick={() => { setForm({ ...form, productId: "", variantId: "" }); setProductSearch(""); }}>
-                    <X size={13} color={C.inkSoft} />
-                  </button>
-                )}
-              </div>
-              {showProductList && !useExisting && productSearch.trim() !== "" && (
-                <div
-                  className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-md border"
-                  style={{ borderColor: C.border, background: C.paperCard, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}
-                >
-                  {db.products
-                    .filter((p) => (p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(productSearch.toLowerCase()))
-                    .slice(0, 30)
-                    .map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          setForm({ ...form, productId: p.id, variantId: "" });
-                          setProductSearch("");
-                          setShowProductList(false);
-                        }}
-                        className="w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-black/5"
-                      >
-                        <span style={{ color: C.ink }}>{p.name}</span>
-                        <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · stock: {productQty(p)}</span>
-                      </button>
-                    ))}
-                  {db.products.filter((p) => (p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(productSearch.toLowerCase())).length === 0 && (
-                    <div className="px-3 py-3 text-sm" style={{ color: C.inkSoft }}>Aucun produit trouvé — il sera créé comme nouveau produit.</div>
-                  )}
-                </div>
-              )}
-            </div>
-          </Field>
-          {needsVariant && (
-            <Field label="Variante à réapprovisionner">
-              <select
-                className={inputClass}
-                style={inputStyle}
-                value={form.variantId}
-                onChange={(e) => {
-                  const v = selectedProduct.variants.find((x) => x.id === e.target.value);
-                  const cost = v && v.costPrice != null ? v.costPrice : selectedProduct.costPrice;
-                  setForm({ ...form, variantId: e.target.value, unitCost: cost != null ? String(cost) : form.unitCost });
-                }}
-              >
-                <option value="">— Choisir —</option>
-                {selectedProduct.variants.map((v) => (
-                  <option key={v.id} value={v.id}>{variantLabel(v) || "Standard"} ({v.qty || 0} en stock)</option>
-                ))}
-              </select>
-            </Field>
-          )}
-          {!useExisting && (
-            <Field label="Nom du produit">
-              <input className={inputClass} style={inputStyle} value={form.newName} onChange={(e) => setForm({ ...form, newName: e.target.value })} />
-            </Field>
-          )}
-          <Field label="Fournisseur existant">
-            <select className={inputClass} style={inputStyle} value={form.supplierId} onChange={(e) => setForm({ ...form, supplierId: e.target.value })}>
-              <option value="">— Nouveau fournisseur —</option>
-              {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </Field>
-          {!form.supplierId && (
-            <Field label="Nom du fournisseur">
-              <input className={inputClass} style={inputStyle} value={form.supplierName} onChange={(e) => setForm({ ...form, supplierName: e.target.value })} />
-            </Field>
-          )}
-          <Field label="Quantité">
-            <input type="number" className={inputClass} style={inputStyle} value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} />
-          </Field>
-          <Field label="Coût unitaire (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={form.unitCost} onChange={(e) => setForm({ ...form, unitCost: e.target.value })} />
-          </Field>
-          <Field label="Paiement">
-            <select className={inputClass} style={inputStyle} value={form.payment} onChange={(e) => setForm({ ...form, payment: e.target.value })}>
-              <option value="cash">Payé comptant</option>
-              <option value="credit">À crédit (je dois au fournisseur)</option>
-            </select>
-          </Field>
-        </div>
-        <button
-          onClick={submit}
-          disabled={saving}
-          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white disabled:opacity-60"
-          style={{ background: C.accent }}
-        >
-          {saving ? (
-            <>
-              <RotateCcw size={14} className="animate-spin" /> Enregistrement…
-            </>
-          ) : (
-            <>
-              <PackagePlus size={14} /> Enregistrer l'achat
-            </>
-          )}
-        </button>
-      </div>
-
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Produit</td><td className="px-4 py-3">Fournisseur</td>
-              <td className="px-4 py-3">Qté</td><td className="px-4 py-3">Coût unit.</td><td className="px-4 py-3">Total</td><td className="px-4 py-3">Paiement</td>
-            </tr>
-          </thead>
-          <tbody>
-            {[...db.purchases].reverse().map((p) => (
-              <tr key={p.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={monoFont}>{p.date}</td>
-                <td className="px-4 py-3">{p.productName}</td>
-                <td className="px-4 py-3" style={{ color: C.inkSoft }}>{p.supplier}</td>
-                <td className="px-4 py-3" style={monoFont}>{p.qty}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(p.unitCost)}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(p.total)} DHS</td>
-                <td className="px-4 py-3">
-                  {p.payment === "credit" ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: C.dangerSoft, color: C.danger }}>CRÉDIT</span>
-                  ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded" style={{ background: C.successSoft, color: C.success }}>COMPTANT</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {db.purchases.length === 0 && (
-              <tr><td colSpan={7} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun achat enregistré.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3 mt-10">Retour fournisseur (produit défectueux)</div>
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div className="grid md:grid-cols-4 gap-3">
-          <Field label="Fournisseur">
-            <select className={inputClass} style={inputStyle} value={returnForm.supplierId} onChange={(e) => setReturnForm({ ...returnForm, supplierId: e.target.value })}>
-              <option value="">— Choisir —</option>
-              {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Produit">
-            <select className={inputClass} style={inputStyle} value={returnForm.productId} onChange={(e) => setReturnForm({ ...returnForm, productId: e.target.value })}>
-              <option value="">— Choisir —</option>
-              {db.products.map((p) => <option key={p.id} value={p.id}>{p.name} (stock: {productQty(p)})</option>)}
-            </select>
-          </Field>
-          <Field label="Quantité">
-            <input type="number" className={inputClass} style={inputStyle} value={returnForm.qty} onChange={(e) => setReturnForm({ ...returnForm, qty: e.target.value })} />
-          </Field>
-          <Field label="Raison (optionnel)">
-            <input className={inputClass} style={inputStyle} value={returnForm.reason} onChange={(e) => setReturnForm({ ...returnForm, reason: e.target.value })} placeholder="Ex: produit cassé" />
-          </Field>
-        </div>
-        <p className="text-xs mt-2" style={{ color: C.inkSoft }}>
-          Le stock sera diminué de cette quantité, et le solde dû au fournisseur sera réduit automatiquement du montant correspondant.
-        </p>
-        <button onClick={submitSupplierReturn} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.danger }}>
-          <RotateCcw size={14} /> Enregistrer le retour
-        </button>
-      </div>
-
-      {(db.supplierReturns || []).length > 0 && (
-        <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-                <td className="px-4 py-3">Date</td><td className="px-4 py-3">Produit</td><td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Qté</td><td className="px-4 py-3">Montant</td><td className="px-4 py-3">Raison</td>
-              </tr>
-            </thead>
-            <tbody>
-              {[...db.supplierReturns].reverse().map((r) => (
-                <tr key={r.id} className="border-b" style={{ borderColor: C.border }}>
-                  <td className="px-4 py-3" style={monoFont}>{r.date}</td>
-                  <td className="px-4 py-3">{r.productName}</td>
-                  <td className="px-4 py-3" style={{ color: C.inkSoft }}>{r.supplierName}</td>
-                  <td className="px-4 py-3" style={monoFont}>{r.qty}</td>
-                  <td className="px-4 py-3" style={{ ...monoFont, color: C.danger }}>−{fmt(r.montant)} DHS</td>
-                  <td className="px-4 py-3" style={{ color: C.inkSoft }}>{r.reason || "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------- Ventes / PDV ----------
-function Ventes({ db, persist, notify, session }) {
-  const [cart, setCart] = useState([]);
-  const [clientId, setClientId] = useState("");
-  const [client, setClient] = useState("");
-  const [payment, setPayment] = useState("cash");
-  const [discount, setDiscount] = useState("0");
-  const [pointsToUse, setPointsToUse] = useState("0");
-  const [channel, setChannel] = useState("Boutique");
-  const [scan, setScan] = useState("");
-  const [pickingProduct, setPickingProduct] = useState(null);
-  const [search, setSearch] = useState("");
-  const [showCamera, setShowCamera] = useState(false);
-  const [lastReceipt, setLastReceipt] = useState(null);
-
-  const printThermalReceipt = (receipt) => {
-    const company = db.company || {};
-    const linesHtml = receipt.items
-      .map(
-        (i) => `<div class="line">
-          <div class="name">${i.name}${i.qty > 1 ? ` × ${i.qty}` : ""}</div>
-          <div class="amt">${fmt(i.price * i.qty)}</div>
-        </div>`
-      )
-      .join("");
-    const html = `
-      <html>
-        <head>
-          <title>Reçu ${receipt.number}</title>
-          <style>
-            @page { margin: 0; }
-            body { font-family: 'Courier New', monospace; width: 76mm; margin: 0 auto; padding: 6px 4px; font-size: 12px; color: #000; }
-            .center { text-align: center; }
-            h1 { font-size: 15px; margin: 0 0 2px; }
-            .muted { font-size: 10px; color: #333; }
-            hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
-            .line { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
-            .name { flex: 1; }
-            .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 4px; }
-          </style>
-        </head>
-        <body>
-          <div class="center">
-            <h1>${company.name || "Electrolik"}</h1>
-            <div class="muted">${company.address || ""}${company.phone ? " · " + company.phone : ""}</div>
-            <div class="muted">${company.ice ? "ICE: " + company.ice : ""}</div>
-          </div>
-          <hr/>
-          <div class="muted">Reçu : ${receipt.number}</div>
-          <div class="muted">${receipt.date} · ${receipt.client}</div>
-          <hr/>
-          ${linesHtml}
-          <hr/>
-          ${receipt.discount > 0 ? `<div class="line"><div>Remise</div><div>-${fmt(receipt.discount)}</div></div>` : ""}
-          ${receipt.tvaRate ? `<div class="line muted"><div>dont TVA ${receipt.tvaRate}%</div><div>${fmt(receipt.tvaAmount)}</div></div>` : ""}
-          <div class="total-row"><div>TOTAL</div><div>${fmt(receipt.total)} DHS</div></div>
-          <div class="muted" style="margin-top:2px;">Paiement : ${receipt.payment === "cash" ? "Comptant" : "Crédit"}</div>
-          <hr/>
-          <div class="center muted">Merci de votre confiance !</div>
-        </body>
-      </html>`;
-    const w = window.open("", "_blank", "width=380,height=600");
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
-
-  const cartKey = (productId, variantId) => productId + "::" + (variantId || "");
-
-  const addVariantToCart = (p, variant) => {
-    const availableQty = variant ? variant.qty || 0 : productQty(p);
-    if (availableQty <= 0) return notify("Rupture de stock");
-    const key = cartKey(p.id, variant && variant.id);
-    setCart((c) => {
-      const existing = c.find((i) => cartKey(i.productId, i.variantId) === key);
-      if (existing) {
-        if (existing.qty >= availableQty) { notify("Stock insuffisant"); return c; }
-        return c.map((i) => (cartKey(i.productId, i.variantId) === key ? { ...i, qty: i.qty + 1 } : i));
-      }
-      const name = variant ? `${p.name} — ${variantLabel(variant)}` : p.name;
-      const price = variant && variant.price != null ? variant.price : p.price;
-      return [...c, { productId: p.id, variantId: variant ? variant.id : null, name, price, qty: 1 }];
-    });
-    setPickingProduct(null);
-  };
-
-  const addToCart = (p) => {
-    if (p.variants && p.variants.length > 0) {
-      setPickingProduct(p);
-      return;
-    }
-    addVariantToCart(p, null);
-  };
-
-  const handleScan = (e) => {
-    if (e.key !== "Enter") return;
-    const code = scan.trim();
-    setScan("");
-    if (!code) return;
-    const found = findByCode(db.products, code);
-    if (!found) return notify("Aucun produit avec ce code");
-    addVariantToCart(found.product, found.variant);
-  };
-
-  const handleCameraDetected = (code) => {
-    setShowCamera(false);
-    const cleanCode = String(code || "").trim();
-    const found = findByCode(db.products, cleanCode);
-    if (!found) return notify(`Aucun produit avec ce code (${cleanCode})`);
-    addVariantToCart(found.product, found.variant);
-  };
-
-  const changeQty = (key, delta) =>
-    setCart((c) => c.map((i) => (cartKey(i.productId, i.variantId) === key ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
-  const removeItem = (key) => setCart((c) => c.filter((i) => cartKey(i.productId, i.variantId) !== key));
-
-  const subtotal = cart.reduce((s, i) => s + i.price * i.qty, 0);
-  const discountAmount = Math.min(subtotal, (subtotal * (Number(discount) || 0)) / 100);
-  const selectedClient = clientId ? db.clients.find((c) => c.id === clientId) : null;
-  const availablePoints = selectedClient ? selectedClient.loyaltyPoints || 0 : 0;
-  const pointsDiscount = Math.min(Number(pointsToUse) || 0, availablePoints, subtotal - discountAmount);
-  const total = subtotal - discountAmount - pointsDiscount;
-  const tvaRate = (db.company && db.company.tvaRate) || 0;
-  const totalHT = tvaRate ? total / (1 + tvaRate / 100) : total;
-  const tvaAmount = total - totalHT;
-
-  const checkout = () => {
-    if (cart.length === 0) return notify("Panier vide");
-    for (const item of cart) {
-      const p = db.products.find((x) => x.id === item.productId);
-      if (!p) return notify(`Produit introuvable pour ${item.name}`);
-      const variant = item.variantId ? (p.variants || []).find((v) => v.id === item.variantId) : null;
-      const available = variant ? variant.qty || 0 : productQty(p);
-      if (available < item.qty) return notify(`Stock insuffisant pour ${item.name}`);
-    }
-    let products = [...db.products];
-    for (const item of cart) {
-      products = adjustStock(products, item.productId, item.variantId, -item.qty);
-    }
-
-    const clientName = client || "Client comptoir";
-    let clients = [...db.clients];
-    if (clientId) {
-      const earnedPoints = Math.floor(total / 10); // 1 point par 10 DHS dépensés
-      clients = clients.map((c) => {
-        if (c.id !== clientId) return c;
-        let next = { ...c };
-        if (payment === "credit") next.balanceDue = (next.balanceDue || 0) + total;
-        next.loyaltyPoints = Math.max(0, (next.loyaltyPoints || 0) - pointsDiscount) + earnedPoints;
-        return next;
-      });
-    }
-
-    const soldBy = session ? session.userName : "—";
-    const saleId = uid();
-    const sale = { id: saleId, date: today(), items: cart, total, totalHT, tvaAmount, tvaRate, discount: discountAmount, client: clientName, clientId, payment, channel, soldBy };
-    const invoiceNumber = "NG-" + db.nextInvoice;
-    const invoice = {
-      id: uid(),
-      saleId,
-      number: invoiceNumber,
-      date: today(),
-      client: clientName,
-      clientId,
-      total,
-      totalHT,
-      tvaAmount,
-      tvaRate,
-      status: payment === "cash" ? "paid" : "pending",
-      items: cart,
-      channel,
-      soldBy,
-    };
-
-    persist({
-      ...db,
-      products,
-      clients,
-      sales: [...db.sales, sale],
-      invoices: [...db.invoices, invoice],
-      nextInvoice: db.nextInvoice + 1,
-    });
-    setCart([]); setClient(""); setClientId(""); setPayment("cash"); setDiscount("0"); setChannel("Boutique"); setPointsToUse("0");
-    setLastReceipt({ ...sale, number: invoiceNumber });
-    notify(`Vente enregistrée — facture ${invoiceNumber}`);
-  };
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Point de vente" title="Ventes / PDV" />
-      <div className="flex flex-wrap gap-3 mb-4">
-        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.accent, background: C.paperCard }}>
-          <Barcode size={16} color={C.accent} />
-          <input
-            placeholder="Scanner ou taper un code-barres, puis Entrée…"
-            className="w-full outline-none text-sm"
-            value={scan}
-            onChange={(e) => setScan(e.target.value)}
-            onKeyDown={handleScan}
-          />
-        </div>
-        <button
-          onClick={() => setShowCamera(true)}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm text-white"
-          style={{ background: C.accent }}
-        >
-          <Camera size={16} /> Scanner avec la caméra
-        </button>
-        <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: C.paperCard }}>
-          <Search size={16} color={C.inkSoft} />
-          <input
-            placeholder="Rechercher par nom ou SKU…"
-            className="w-full outline-none text-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {showCamera && <CameraScanner onDetected={handleCameraDetected} onClose={() => setShowCamera(false)} />}
-
-      {pickingProduct && (
-        <div className="rounded-xl border p-4 mb-4" style={{ borderColor: C.accent, background: C.paperCard }}>
-          <div className="flex items-center justify-between mb-3">
-            <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">
-              Choisir une variante — {pickingProduct.name}
-            </div>
-            <button onClick={() => setPickingProduct(null)}><X size={14} color={C.inkSoft} /></button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(pickingProduct.variants || []).map((v) => (
-              <button
-                key={v.id}
-                onClick={() => addVariantToCart(pickingProduct, v)}
-                disabled={(v.qty || 0) <= 0}
-                className="px-3 py-2 rounded-md border text-sm disabled:opacity-40"
-                style={{ borderColor: C.border }}
-              >
-                {variantLabel(v) || "Standard"} <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>({v.qty || 0})</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {db.products
-              .filter((p) => (p.name + " " + p.sku).toLowerCase().includes(search.toLowerCase()))
-              .map((p) => {
-              const qty = productQty(p);
-              return (
-                <button
-                  key={p.id}
-                  onClick={() => addToCart(p)}
-                  disabled={qty <= 0}
-                  className="text-left rounded-xl border p-3 disabled:opacity-40 flex gap-3 items-center"
-                  style={{ borderColor: C.border, background: C.paperCard }}
-                >
-                  <div className="w-12 h-12 rounded-md border flex items-center justify-center overflow-hidden shrink-0" style={{ borderColor: C.border, background: C.paper }}>
-                    {p.image ? <img src={p.image} alt="" className="w-full h-full object-cover" /> : <ImageIcon size={16} color={C.inkSoft} />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-sm mb-1 truncate" style={{ color: C.ink }}>{p.name}</div>
-                    <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>
-                      {p.sku} · {qty} en stock{p.variants && p.variants.length > 0 ? ` · ${p.variants.length} variantes` : ""}
-                    </div>
-                    <div style={{ ...monoFont, color: C.accent }} className="mt-1 text-sm">{fmt(p.price)} DHS</div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-xl border p-5 h-fit sticky top-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Panier</div>
-          {cart.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
-          ) : (
-            <ul className="space-y-3 mb-4">
-              {cart.map((i) => {
-                const key = cartKey(i.productId, i.variantId);
-                return (
-                  <li key={key} className="flex items-center justify-between text-sm gap-2">
-                    <span style={{ color: C.ink }} className="flex-1">{i.name}</span>
-                    <button onClick={() => changeQty(key, -1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={10} /></button>
-                    <span style={monoFont}>{i.qty}</span>
-                    <button onClick={() => changeQty(key, 1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={10} /></button>
-                    <button onClick={() => removeItem(key)}><X size={13} color={C.danger} /></button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <Field label="Client">
-            <select
-              className={inputClass}
-              style={{ ...inputStyle, marginBottom: 10 }}
-              value={clientId}
-              onChange={(e) => {
-                const c = db.clients.find((x) => x.id === e.target.value);
-                setClientId(e.target.value);
-                setClient(c ? c.name : "");
-              }}
-            >
-              <option value="">Client comptoir</option>
-              {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Remise (%)">
-            <input type="number" min="0" max="100" className={inputClass} style={{ ...inputStyle, marginBottom: 10 }} value={discount} onChange={(e) => setDiscount(e.target.value)} />
-          </Field>
-          {selectedClient && availablePoints > 0 && (
-            <Field label={`Points fidélité à utiliser (${availablePoints} dispo.)`}>
-              <input
-                type="number"
-                min="0"
-                max={availablePoints}
-                className={inputClass}
-                style={{ ...inputStyle, marginBottom: 10 }}
-                value={pointsToUse}
-                onChange={(e) => setPointsToUse(e.target.value)}
-                placeholder="1 point = 1 DHS"
-              />
-            </Field>
-          )}
-          <Field label="Paiement">
-            <select className={inputClass} style={inputStyle} value={payment} onChange={(e) => setPayment(e.target.value)}>
-              <option value="cash">Comptant (payé)</option>
-              <option value="credit">Crédit (en attente)</option>
-            </select>
-          </Field>
-          <Field label="Canal de vente">
-            <select className={inputClass} style={{ ...inputStyle, marginTop: 10 }} value={channel} onChange={(e) => setChannel(e.target.value)}>
-              <option value="Boutique">Boutique (magasin)</option>
-              <option value="Site web">Site web</option>
-              <option value="Facebook">Facebook</option>
-              <option value="Instagram">Instagram</option>
-              <option value="WhatsApp">WhatsApp</option>
-            </select>
-          </Field>
-          <div className="flex justify-between text-sm mt-3">
-            <span style={{ color: C.inkSoft }}>Sous-total</span>
-            <span style={monoFont}>{fmt(subtotal)} DHS</span>
-          </div>
-          {discountAmount > 0 && (
-            <div className="flex justify-between text-sm">
-              <span style={{ color: C.inkSoft }}>Remise</span>
-              <span style={{ ...monoFont, color: C.danger }}>−{fmt(discountAmount)} DHS</span>
-            </div>
-          )}
-          {pointsDiscount > 0 && (
-            <div className="flex justify-between text-sm">
-              <span style={{ color: C.inkSoft }}>Points fidélité ({pointsDiscount} pts)</span>
-              <span style={{ ...monoFont, color: C.danger }}>−{fmt(pointsDiscount)} DHS</span>
-            </div>
-          )}
-          {tvaRate > 0 && (
-            <>
-              <div className="flex justify-between text-sm">
-                <span style={{ color: C.inkSoft }}>Total HT</span>
-                <span style={monoFont}>{fmt(totalHT)} DHS</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span style={{ color: C.inkSoft }}>TVA ({tvaRate}%)</span>
-                <span style={monoFont}>{fmt(tvaAmount)} DHS</span>
-              </div>
-            </>
-          )}
-          <div className="flex justify-between items-center my-4 pt-3 border-t" style={{ borderColor: C.border }}>
-            <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase">Total {tvaRate > 0 ? "TTC" : ""}</span>
-            <span style={{ ...displayFont, color: C.ink }} className="text-2xl">{fmt(total)} DHS</span>
-          </div>
-          <button onClick={checkout} className="w-full py-2.5 rounded-md text-sm text-white flex items-center justify-center gap-2" style={{ background: C.accent }}>
-            Valider la vente <ChevronRight size={14} />
-          </button>
-          {lastReceipt && (
-            <button
-              onClick={() => printThermalReceipt(lastReceipt)}
-              className="w-full mt-2 py-2 rounded-md text-sm border flex items-center justify-center gap-2"
-              style={{ borderColor: C.border, color: C.ink }}
-            >
-              <Printer size={14} /> Imprimer le reçu ({lastReceipt.number})
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Facturation ----------
-function Facturation({ db, persist, notify, log }) {
-  const markPaid = (id) => {
-    const inv = db.invoices.find((i) => i.id === id);
-    const clients = inv && inv.clientId
-      ? db.clients.map((c) => (c.id === inv.clientId ? { ...c, balanceDue: Math.max(0, (c.balanceDue || 0) - inv.total) } : c))
-      : db.clients;
-    persist({ ...db, clients, invoices: db.invoices.map((i) => (i.id === id ? { ...i, status: "paid" } : i)) });
-    if (log && inv) log("mark_invoice_paid", "invoices", id, { number: inv.number, total: inv.total });
-  };
-
-  const processReturn = (inv) => {
-    if (!confirm(`Traiter le retour complet de la facture ${inv.number} ? Les articles seront remis en stock.`)) return;
-    const sale = db.sales.find((s) => s.id === inv.saleId);
-    if (!sale) return notify("Vente d'origine introuvable, retour impossible");
-    if (sale.returned) return notify("Cette vente a déjà été retournée");
-
-    let products = [...db.products];
-    (inv.items || []).forEach((item) => {
-      products = adjustStock(products, item.productId, item.variantId, item.qty);
-    });
-    const clients = inv.clientId && inv.status === "pending"
-      ? db.clients.map((c) => (c.id === inv.clientId ? { ...c, balanceDue: Math.max(0, (c.balanceDue || 0) - inv.total) } : c))
-      : db.clients;
-    const ret = { id: uid(), date: today(), invoiceNumber: inv.number, client: inv.client, total: inv.total };
-
-    persist({
-      ...db,
-      products,
-      clients,
-      sales: db.sales.map((s) => (s.id === sale.id ? { ...s, returned: true } : s)),
-      invoices: db.invoices.map((i) => (i.id === inv.id ? { ...i, status: "returned" } : i)),
-      returns: [...(db.returns || []), ret],
-    });
-    if (log) log("process_return", "invoices", inv.id, { number: inv.number, total: inv.total });
-    notify(`Retour traité pour ${inv.number}, stock remis à jour`);
-  };
-
-  const totalPending = db.invoices.filter((i) => i.status === "pending").reduce((s, i) => s + i.total, 0);
-
-  const exportExcel = () => {
-    const rows = db.invoices.map((inv) => ({
-      Numéro: inv.number, Date: inv.date, Client: inv.client,
-      Total: inv.total, Statut: inv.status === "paid" ? "Payé" : inv.status === "returned" ? "Retourné" : "En attente",
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Factures");
-    XLSX.writeFile(wb, "factures.xlsx");
-    notify("Export Excel téléchargé");
-  };
-
-  const printInvoice = (inv) => {
-    const rowsHtml = (inv.items || [])
-      .map(
-        (i) => `<tr>
-          <td style="padding:8px 0;">${i.name}</td>
-          <td style="padding:8px 0;text-align:center;">${i.qty}</td>
-          <td style="padding:8px 0;text-align:right;">${fmt(i.price)} DHS</td>
-          <td style="padding:8px 0;text-align:right;">${fmt(i.price * i.qty)} DHS</td>
-        </tr>`
-      )
-      .join("");
-    const company = db.company || {};
-    const legalLine = [
-      company.ice ? `ICE: ${company.ice}` : "",
-      company.rc ? `RC: ${company.rc}` : "",
-      company.patente ? `Patente: ${company.patente}` : "",
-    ].filter(Boolean).join(" · ");
-    const tvaRows = inv.tvaRate
-      ? `
-        <div style="display:flex;justify-content:space-between;margin-top:14px;font-size:13px;color:#5B6274;">
-          <span>Total HT</span><span>${fmt(inv.totalHT)} DHS</span>
-        </div>
-        <div style="display:flex;justify-content:space-between;font-size:13px;color:#5B6274;">
-          <span>TVA (${inv.tvaRate}%)</span><span>${fmt(inv.tvaAmount)} DHS</span>
-        </div>`
-      : "";
-    const html = `
-      <html>
-        <head>
-          <title>${inv.number}</title>
-          <style>
-            body { font-family: 'Inter', ui-sans-serif, sans-serif; color: #14161B; padding: 40px; max-width: 640px; margin: auto; }
-            h1 { font-family: 'Space Grotesk', ui-sans-serif, sans-serif; font-weight: 700; margin-bottom: 0; letter-spacing: -0.01em; }
-            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
-            .legal { color: #5B6274; font-size: 11px; margin-top: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-            th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
-            th:nth-child(2) { text-align: center; }
-            th:nth-child(3), th:nth-child(4) { text-align: right; }
-            tr td { border-bottom: 1px solid #EEE; }
-            .total { text-align: right; margin-top: 10px; font-size: 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; }
-            .stamp { display: inline-block; margin-top: 10px; padding: 4px 12px; border: 2px solid ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; color: ${inv.status === "paid" ? "#3F7859" : "#B4453A"}; border-radius: 999px; font-size: 11px; letter-spacing: 0.1em; transform: rotate(-2deg); }
-          </style>
-        </head>
-        <body>
-          <h1>${company.name || "Electrolik"}</h1>
-          ${company.address || company.phone ? `<div class="legal">${[company.address, company.phone].filter(Boolean).join(" · ")}</div>` : ""}
-          ${legalLine ? `<div class="legal">${legalLine}</div>` : ""}
-          <div class="muted" style="margin-top:12px;">Facture ${inv.number}</div>
-          <p>Client : ${inv.client}<br/>Date : ${inv.date}${inv.soldBy ? `<br/>Vendu par : ${inv.soldBy}` : ""}</p>
-          <table>
-            <thead><tr><th>Article</th><th>Qté</th><th>Prix</th><th>Total</th></tr></thead>
-            <tbody>${rowsHtml}</tbody>
-          </table>
-          ${tvaRows}
-          <div class="total">Total ${inv.tvaRate ? "TTC" : ""} : ${fmt(inv.total)} DHS</div>
-          <div class="stamp">${inv.status === "paid" ? "PAYÉ" : inv.status === "returned" ? "RETOURNÉ" : "EN ATTENTE"}</div>
-        </body>
-      </html>`;
-    const w = window.open("", "_blank");
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Registre"
-        title="Facturation"
-        action={
-          <div className="flex items-center gap-4">
-            <button onClick={exportExcel} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.inkSoft }}>
-              <Download size={13} /> Excel
-            </button>
-            <div className="text-right">
-              <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">En attente</div>
-              <div style={{ ...displayFont, color: C.danger }} className="text-xl">{fmt(totalPending)} DHS</div>
-            </div>
-          </div>
-        }
-      />
-      <div className="space-y-3">
-        {[...db.invoices].reverse().map((inv) => (
-          <div key={inv.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
-            <div>
-              <div style={monoFont} className="text-sm">{inv.number}</div>
-              <div style={{ color: C.inkSoft }} className="text-xs">{inv.client} · {inv.date}{inv.soldBy ? ` · ${inv.soldBy}` : ""}</div>
-            </div>
-            <div style={{ ...displayFont, color: inv.status === "returned" ? C.inkSoft : C.ink }} className="text-lg">{fmt(inv.total)} DHS</div>
-            <Stamp status={inv.status} />
-            <div className="flex gap-2">
-              <button onClick={() => printInvoice(inv)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
-                <Printer size={12} /> Imprimer
-              </button>
-              {inv.status === "pending" && (
-                <button onClick={() => markPaid(inv.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                  Marquer payée
-                </button>
-              )}
-              {inv.status !== "returned" && (
-                <button onClick={() => processReturn(inv)} className="text-xs px-3 py-1.5 rounded-md border flex items-center gap-1" style={{ borderColor: C.danger, color: C.danger }}>
-                  <RotateCcw size={12} /> Retour
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-        {db.invoices.length === 0 && (
-          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>
-            Aucune facture pour l'instant — elles sont créées automatiquement depuis le module Ventes.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Clients ----------
-const PAYMENT_MODE_LABELS = { hebdo: "Chaque semaine", "10j": "Tous les 10 jours (sur colis livrés)", surplace: "Sur place" };
-
-// ---------- Fiche client détaillée ----------
-function ClientDetail({ db, client, onBack, onWhatsapp }) {
-  const sales = db.sales.filter((s) => s.clientId === client.id).sort((a, b) => (a.date < b.date ? 1 : -1));
-  const colisList = db.deliveryNotes.filter((b) => b.clientId === client.id).sort((a, b) => (a.date < b.date ? 1 : -1));
-  const payments = (db.clientPayments || []).filter((p) => p.clientId === client.id).sort((a, b) => (a.date < b.date ? 1 : -1));
-
-  const totalAchete = sales.filter((s) => !s.returned).reduce((s, x) => s + x.total, 0);
-  const totalEncaisse = payments.reduce((s, p) => s + p.amount, 0);
-
-  return (
-    <div>
-      <button onClick={onBack} className="inline-flex items-center gap-2 text-sm mb-5" style={{ color: C.inkSoft }}>
-        <ChevronRight size={14} style={{ transform: "rotate(180deg)" }} /> Retour aux clients
-      </button>
-
-      <div className="rounded-xl border p-6 mb-8 flex flex-wrap items-center justify-between gap-4" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div>
-          <div style={{ ...displayFont, color: C.ink }} className="text-2xl italic">{client.name}</div>
-          <div className="flex items-center gap-3 mt-1 text-sm" style={{ color: C.inkSoft }}>
-            <span className="flex items-center gap-1"><Phone size={12} />{client.phone || "—"}</span>
-            <span>·</span>
-            <span style={monoFont} className="text-xs uppercase tracking-widest">{PAYMENT_MODE_LABELS[client.paymentMode || "surplace"]}</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-6">
-          <div className="text-right">
-            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Total acheté</div>
-            <div style={{ ...monoFont, color: C.ink }} className="text-lg">{fmt(totalAchete)} DHS</div>
-          </div>
-          <div className="text-right">
-            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Solde dû</div>
-            <div style={{ ...monoFont, color: (client.balanceDue || 0) > 0 ? C.danger : C.success }} className="text-lg">{fmt(client.balanceDue || 0)} DHS</div>
-          </div>
-          <div className="text-right">
-            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Points fidélité</div>
-            <div style={{ ...monoFont, color: C.accent }} className="text-lg">{client.loyaltyPoints || 0} pts</div>
-          </div>
-          {client.phone && (
-            <button onClick={() => onWhatsapp(client)} className="p-2 rounded-md border" style={{ borderColor: C.border }} title="WhatsApp">
-              <MessageCircle size={16} color="#25D366" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Ventes / Factures */}
-        <div>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Ventes ({sales.length})</div>
-          <div className="space-y-2">
-            {sales.map((s) => (
-              <div key={s.id} className="rounded-xl border p-3" style={{ borderColor: C.border, background: C.paperCard }}>
-                <div className="flex justify-between text-sm">
-                  <span style={monoFont}>{s.date}</span>
-                  <span style={{ ...monoFont, color: s.returned ? C.inkSoft : C.ink }}>{fmt(s.total)} DHS</span>
-                </div>
-                <div className="text-xs mt-1" style={{ color: C.inkSoft }}>
-                  {(s.items || []).length} article(s) · {s.payment === "cash" ? "Comptant" : "Crédit"}
-                  {s.returned && " · Retourné"}
-                </div>
-              </div>
-            ))}
-            {sales.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Aucune vente enregistrée.</p>}
-          </div>
-        </div>
-
-        {/* Colis */}
-        <div>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Colis ({colisList.length})</div>
-          <div className="space-y-2">
-            {colisList.map((b) => {
-              const statuses = b.items.map((i) => i.status || b.status || "attente");
-              const overall = statuses.every((s) => s === "livre") ? "livre" : statuses.every((s) => s === "echec") ? "echec" : statuses.every((s) => s === "attente") ? "attente" : "partiel";
-              return (
-                <div key={b.id} className="rounded-xl border p-3" style={{ borderColor: C.border, background: C.paperCard }}>
-                  <div className="flex justify-between text-sm">
-                    <span style={monoFont}>{b.number}</span>
-                    <span style={monoFont}>{fmt(b.montant || 0)} DHS</span>
-                  </div>
-                  <div className="text-xs mt-1 flex items-center justify-between" style={{ color: C.inkSoft }}>
-                    <span>{b.date} · {b.items.length} article(s)</span>
-                    <span
-                      className="px-2 py-0.5 rounded"
-                      style={{
-                        ...monoFont, fontSize: 10,
-                        background: overall === "livre" ? C.successSoft : overall === "echec" ? C.dangerSoft : overall === "partiel" ? C.accentSoft : C.border,
-                        color: overall === "livre" ? C.success : overall === "echec" ? C.danger : overall === "partiel" ? "#8A6D00" : C.inkSoft,
-                      }}
-                    >
-                      {overall === "livre" ? "LIVRÉ" : overall === "echec" ? "ÉCHEC" : overall === "partiel" ? "PARTIEL" : "ATTENTE"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-            {colisList.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Aucun colis pour ce client.</p>}
-          </div>
-        </div>
-
-        {/* Paiements */}
-        <div>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">
-            Paiements reçus ({fmt(totalEncaisse)} DHS)
-          </div>
-          <div className="space-y-2">
-            {payments.map((p) => (
-              <div key={p.id} className="rounded-xl border p-3 flex justify-between text-sm" style={{ borderColor: C.border, background: C.paperCard }}>
-                <span style={monoFont}>{p.date}</span>
-                <span style={{ ...monoFont, color: C.success }}>+{fmt(p.amount)} DHS</span>
-              </div>
-            ))}
-            {payments.length === 0 && <p className="text-sm" style={{ color: C.inkSoft }}>Aucun paiement encaissé pour l'instant.</p>}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Recherche globale (Ctrl+K) ----------
-function GlobalSearch({ db, onSelect, onClose }) {
-  const [q, setQ] = useState("");
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    inputRef.current && inputRef.current.focus();
-  }, []);
-
-  const results = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    if (!term) return [];
-    const out = [];
-    db.clients.forEach((c) => {
-      if ((c.name + " " + (c.phone || "")).toLowerCase().includes(term)) {
-        out.push({ type: "client", icon: Users, label: c.name, sub: c.phone || "Client", id: c.id });
-      }
-    });
-    db.products.forEach((p) => {
-      if ((p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(term)) {
-        out.push({ type: "product", icon: Boxes, label: p.name, sub: `${p.sku} · ${fmt(p.price)} DHS`, id: p.id });
-      }
-    });
-    db.suppliers.forEach((s) => {
-      if (s.name.toLowerCase().includes(term)) {
-        out.push({ type: "supplier", icon: Truck, label: s.name, sub: "Fournisseur", id: s.id });
-      }
-    });
-    db.invoices.forEach((inv) => {
-      if ((inv.number + " " + inv.client).toLowerCase().includes(term)) {
-        out.push({ type: "invoice", icon: Receipt, label: inv.number, sub: `${inv.client} · ${fmt(inv.total)} DHS`, id: inv.id });
-      }
-    });
-    db.deliveryNotes.forEach((b) => {
-      if ((b.number + " " + b.client).toLowerCase().includes(term)) {
-        out.push({ type: "colis", icon: ClipboardList, label: b.number, sub: b.client, id: b.id });
-      }
-    });
-    return out.slice(0, 25);
-  }, [q, db]);
-
-  const groups = [
-    { type: "client", label: "Clients" },
-    { type: "product", label: "Produits" },
-    { type: "supplier", label: "Fournisseurs" },
-    { type: "invoice", label: "Factures" },
-    { type: "colis", label: "Colis" },
-  ];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4"
-      style={{ background: "rgba(12,13,16,0.55)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-lg rounded-xl border overflow-hidden"
-        style={{ borderColor: C.border, background: C.paperCard, boxShadow: "0 20px 60px rgba(0,0,0,0.35)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: C.border }}>
-          <Search size={16} color={C.inkSoft} />
-          <input
-            ref={inputRef}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => e.key === "Escape" && onClose()}
-            placeholder="Rechercher un client, produit, fournisseur, facture, colis…"
-            className="w-full outline-none text-sm bg-transparent"
-            style={{ color: C.ink }}
-          />
-          <span style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="px-1.5 py-0.5 border rounded" >ESC</span>
-        </div>
-        <div className="max-h-96 overflow-y-auto">
-          {q.trim() === "" ? (
-            <div className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Tapez pour rechercher partout dans l'application.</div>
-          ) : results.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun résultat pour "{q}".</div>
-          ) : (
-            groups.map((g) => {
-              const items = results.filter((r) => r.type === g.type);
-              if (items.length === 0) return null;
-              return (
-                <div key={g.type} className="py-2">
-                  <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest px-4 py-1">{g.label}</div>
-                  {items.map((r) => (
-                    <button
-                      key={r.type + r.id}
-                      onClick={() => onSelect(r)}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-black/5"
-                    >
-                      <r.icon size={15} color={C.inkSoft} />
-                      <div className="flex-1">
-                        <div className="text-sm" style={{ color: C.ink }}>{r.label}</div>
-                        <div className="text-xs" style={{ color: C.inkSoft }}>{r.sub}</div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Clients({ db, persist, notify, log, initialClientId }) {
-  const [form, setForm] = useState({ name: "", phone: "", paymentMode: "surplace" });
-  const [viewClientId, setViewClientId] = useState(initialClientId || null);
-
-  const addClient = () => {
-    if (!form.name) return notify("Nom requis");
-    persist({ ...db, clients: [...db.clients, { id: uid(), name: form.name, phone: form.phone, paymentMode: form.paymentMode, balanceDue: 0 }] });
-    setForm({ name: "", phone: "", paymentMode: "surplace" });
-    notify("Client ajouté");
-  };
-
-  const changePaymentMode = (id, mode) => {
-    persist({ ...db, clients: db.clients.map((c) => (c.id === id ? { ...c, paymentMode: mode } : c)) });
-  };
-
-  const removeClient = (id) => {
-    const c = db.clients.find((x) => x.id === id);
-    const prevDb = db;
-    persist({ ...db, clients: db.clients.filter((c) => c.id !== id) });
-    if (log && c) log("delete_client", "clients", id, { name: c.name });
-    if (c) notify(`Client "${c.name}" supprimé`, () => persist(prevDb));
-  };
-
-  const totalDue = db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0);
-
-  const whatsappReminder = (c) => {
-    if (!c.phone) return notify("Ce client n'a pas de numéro de téléphone enregistré");
-    let phone = c.phone.replace(/[\s.\-()]/g, "");
-    if (phone.startsWith("0")) phone = "212" + phone.slice(1);
-    else if (!phone.startsWith("212")) phone = "212" + phone;
-    const msg =
-      (c.balanceDue || 0) > 0
-        ? `Bonjour ${c.name}, un rappel amical : votre solde dû chez Electrolik est de ${fmt(c.balanceDue)} DHS. Merci de bien vouloir régulariser. 🙏`
-        : `Bonjour ${c.name}, merci pour votre confiance chez Electrolik ! N'hésitez pas à nous contacter pour toute commande. 😊`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, "_blank");
-  };
-
-  if (viewClientId) {
-    const client = db.clients.find((c) => c.id === viewClientId);
-    if (client) {
-      return <ClientDetail db={db} client={client} onBack={() => setViewClientId(null)} onWhatsapp={whatsappReminder} />;
-    }
-    setViewClientId(null);
-  }
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Registre"
-        title="Clients"
-        action={
-          <div className="text-right">
-            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Total dû</div>
-            <div style={{ ...displayFont, color: C.danger }} className="text-xl">{fmt(totalDue)} DHS</div>
-          </div>
-        }
-      />
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau client</div>
-        <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Nom"><input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Téléphone"><input className={inputClass} style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-          <Field label="Mode de paiement">
-            <select className={inputClass} style={inputStyle} value={form.paymentMode} onChange={(e) => setForm({ ...form, paymentMode: e.target.value })}>
-              {Object.entries(PAYMENT_MODE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </Field>
-        </div>
-        <button onClick={addClient} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Plus size={14} /> Ajouter le client
-        </button>
-      </div>
-
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Client</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Mode de paiement</td><td className="px-4 py-3">Solde dû</td><td className="px-4 py-3"></td>
-            </tr>
-          </thead>
-          <tbody>
-            {db.clients.map((c) => (
-              <tr key={c.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3">
-                  <button onClick={() => setViewClientId(c.id)} style={{ color: C.ink }} className="hover:underline text-left">
-                    {c.name}
-                  </button>
-                </td>
-                <td className="px-4 py-3 flex items-center gap-1" style={{ color: C.inkSoft }}><Phone size={12} />{c.phone || "—"}</td>
-                <td className="px-4 py-3">
-                  <select
-                    className="border rounded-md px-2 py-1 text-xs outline-none"
-                    style={inputStyle}
-                    value={c.paymentMode || "surplace"}
-                    onChange={(e) => changePaymentMode(c.id, e.target.value)}
-                  >
-                    {Object.entries(PAYMENT_MODE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-                  </select>
-                </td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: c.balanceDue > 0 ? C.danger : C.success }}>{fmt(c.balanceDue || 0)} DHS</td>
-                <td className="px-4 py-3 text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <button onClick={() => whatsappReminder(c)} title="Envoyer un message WhatsApp">
-                      <MessageCircle size={15} color="#25D366" />
-                    </button>
-                    <button onClick={() => removeClient(c.id)}><Trash2 size={14} color={C.danger} /></button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {db.clients.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun client enregistré.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Fournisseurs ----------
-function Fournisseurs({ db, persist, notify, log }) {
-  const [form, setForm] = useState({ name: "", phone: "" });
-  const [payForm, setPayForm] = useState({ supplierId: "", amount: "" });
-  const [debtForm, setDebtForm] = useState({ supplierId: "", amount: "", note: "" });
-
-  const addSupplier = () => {
-    if (!form.name) return notify("Nom requis");
-    persist({ ...db, suppliers: [...db.suppliers, { id: uid(), name: form.name, phone: form.phone, balanceDue: 0 }] });
-    setForm({ name: "", phone: "" });
-    notify("Fournisseur ajouté");
-  };
-
-  const removeSupplier = (id) => {
-    const s = db.suppliers.find((x) => x.id === id);
-    const prevDb = db;
-    persist({ ...db, suppliers: db.suppliers.filter((s) => s.id !== id) });
-    if (log && s) log("delete_supplier", "suppliers", id, { name: s.name });
-    if (s) notify(`Fournisseur "${s.name}" supprimé`, () => persist(prevDb));
-  };
-
-  const addExistingDebt = () => {
-    const supplier = db.suppliers.find((s) => s.id === debtForm.supplierId);
-    const amount = Number(debtForm.amount);
-    if (!supplier || !amount || amount <= 0) return notify("Fournisseur et montant requis");
-    const suppliers = db.suppliers.map((s) =>
-      s.id === supplier.id ? { ...s, balanceDue: (s.balanceDue || 0) + amount } : s
-    );
-    const debt = { id: uid(), date: today(), supplierId: supplier.id, supplierName: supplier.name, amount, note: debtForm.note };
-    persist({ ...db, suppliers, openingDebts: [...(db.openingDebts || []), debt] }); // ne touche ni au stock, ni aux achats — juste le solde dû
-    if (log) log("add_opening_debt", "suppliers", supplier.id, { name: supplier.name, amount, note: debtForm.note });
-    setDebtForm({ supplierId: "", amount: "", note: "" });
-    notify(`Dette de ${fmt(amount)} DHS ajoutée pour ${supplier.name}`);
-  };
-
-  const recordPayment = () => {
-    const supplier = db.suppliers.find((s) => s.id === payForm.supplierId);
-    const amount = Number(payForm.amount);
-    if (!supplier || !amount || amount <= 0) return notify("Fournisseur et montant requis");
-    const suppliers = db.suppliers.map((s) =>
-      s.id === supplier.id ? { ...s, balanceDue: Math.max(0, (s.balanceDue || 0) - amount) } : s
-    );
-    const payment = { id: uid(), date: today(), supplierId: supplier.id, supplierName: supplier.name, amount };
-    persist({ ...db, suppliers, supplierPayments: [...(db.supplierPayments || []), payment] });
-    if (log) log("pay_supplier", "suppliers", supplier.id, { name: supplier.name, amount });
-    setPayForm({ supplierId: "", amount: "" });
-    notify(`Paiement de ${fmt(amount)} DHS enregistré pour ${supplier.name}`);
-  };
-
-  const spentBySupplier = (name) => db.purchases.filter((p) => p.supplier === name).reduce((s, p) => s + p.total, 0);
-  const totalDue = db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0);
-
-  // Construit la liste chronologique de toutes les transactions avec un fournisseur + solde cumulé
-  const getSupplierStatement = (supplier) => {
-    const rows = [];
-    (db.openingDebts || []).filter((d) => d.supplierId === supplier.id).forEach((d) => {
-      rows.push({ date: d.date, type: "Dette initiale", detail: d.note || "Solde de départ", montant: d.amount, sens: "+" });
-    });
-    db.purchases.filter((p) => p.supplierId === supplier.id).forEach((p) => {
-      rows.push({
-        date: p.date,
-        type: p.payment === "credit" ? "Achat à crédit" : "Achat comptant",
-        detail: `${p.productName} × ${p.qty}`,
-        montant: p.total,
-        sens: p.payment === "credit" ? "+" : "0",
-      });
-    });
-    (db.supplierPayments || []).filter((pay) => pay.supplierId === supplier.id).forEach((pay) => {
-      rows.push({ date: pay.date, type: "Paiement", detail: "Réglé au fournisseur", montant: pay.amount, sens: "-" });
-    });
-    (db.supplierReturns || []).filter((r) => r.supplierId === supplier.id).forEach((r) => {
-      rows.push({ date: r.date, type: "Retour fournisseur", detail: `${r.productName} × ${r.qty}${r.reason ? " — " + r.reason : ""}`, montant: r.montant, sens: "-" });
-    });
-    rows.sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
-    let solde = 0;
-    return rows.map((r) => {
-      if (r.sens === "+") solde += r.montant;
-      if (r.sens === "-") solde -= r.montant;
-      return { ...r, solde };
-    });
-  };
-
-  const printSupplierStatement = (supplier) => {
-    const rows = getSupplierStatement(supplier);
-    const company = db.company || {};
-    const rowsHtml = rows
-      .map(
-        (r) => `<tr>
-          <td style="padding:6px 0;">${r.date}</td>
-          <td style="padding:6px 0;">${r.type}</td>
-          <td style="padding:6px 0;color:#5B6274;">${r.detail}</td>
-          <td style="padding:6px 0;text-align:right;color:${r.sens === "+" ? "#B4453A" : r.sens === "-" ? "#3F7859" : "#5B6274"};">${r.sens === "+" ? "+" : r.sens === "-" ? "−" : ""}${fmt(r.montant)} DHS</td>
-          <td style="padding:6px 0;text-align:right;">${fmt(r.solde)} DHS</td>
-        </tr>`
-      )
-      .join("");
-    const html = `
-      <html>
-        <head>
-          <title>Relevé — ${supplier.name}</title>
-          <style>
-            body { font-family: '''Inter''', ui-sans-serif, sans-serif; color: #14161B; padding: 40px; max-width: 760px; margin: auto; }
-            h1 { font-family: '''Space Grotesk''', ui-sans-serif, sans-serif; font-weight: 700; margin-bottom: 0; letter-spacing: -0.01em; }
-            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; }
-            table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-            th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
-            th:nth-child(4), th:nth-child(5) { text-align: right; }
-            tr td { border-bottom: 1px solid #EEE; }
-            .total { text-align: right; margin-top: 14px; font-size: 22px; font-family: 'Space Grotesk', sans-serif; font-weight: 700; }
-          </style>
-        </head>
-        <body>
-          <h1>${company.name || "Electrolik"}</h1>
-          <div class="muted" style="margin-top:12px;">Relevé de compte — ${supplier.name}</div>
-          <p>Téléphone : ${supplier.phone || "—"}<br/>Généré le : ${today()}</p>
-          <table>
-            <thead><tr><th>Date</th><th>Type</th><th>Détail</th><th>Montant</th><th>Solde cumulé</th></tr></thead>
-            <tbody>${rowsHtml || `<tr><td colspan="5" style="padding:12px 0;color:#5B6274;">Aucune transaction.</td></tr>`}</tbody>
-          </table>
-          <div class="total">Solde dû actuel : ${fmt(supplier.balanceDue || 0)} DHS</div>
-        </body>
-      </html>`;
-    const w = window.open("", "_blank");
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
-
-  const exportSupplierStatementExcel = (supplier) => {
-    const rows = getSupplierStatement(supplier);
-    const data = rows.map((r) => ({
-      Date: r.date,
-      Type: r.type,
-      Détail: r.detail,
-      "Montant (DHS)": r.sens === "+" ? r.montant : r.sens === "-" ? -r.montant : r.montant,
-      "Solde cumulé (DHS)": r.solde,
-    }));
-    data.push({ Date: "", Type: "", Détail: "SOLDE DÛ ACTUEL", "Montant (DHS)": "", "Solde cumulé (DHS)": supplier.balanceDue || 0 });
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Relevé");
-    XLSX.writeFile(wb, `releve-${supplier.name.replace(/[^a-z0-9]+/gi, "-")}-${today()}.xlsx`);
-    notify("Relevé Excel téléchargé");
-  };
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Registre"
-        title="Fournisseurs"
-        action={
-          <div className="text-right">
-            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Total dû aux fournisseurs</div>
-            <div style={{ ...displayFont, color: C.danger }} className="text-xl">{fmt(totalDue)} DHS</div>
-          </div>
-        }
-      />
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau fournisseur</div>
-        <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Nom"><input className={inputClass} style={inputStyle} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Téléphone"><input className={inputClass} style={inputStyle} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-        </div>
-        <button onClick={addSupplier} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Plus size={14} /> Ajouter le fournisseur
-        </button>
-      </div>
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.accent, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dette déjà existante (solde de départ)</div>
-        <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-          Pour enregistrer un montant que vous devez déjà à un fournisseur (avant d'utiliser cette application). Cela n'affecte ni le stock ni les achats — uniquement le solde dû.
-        </p>
-        <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Fournisseur">
-            <select className={inputClass} style={inputStyle} value={debtForm.supplierId} onChange={(e) => setDebtForm({ ...debtForm, supplierId: e.target.value })}>
-              <option value="">— Choisir —</option>
-              {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Montant dû (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={debtForm.amount} onChange={(e) => setDebtForm({ ...debtForm, amount: e.target.value })} />
-          </Field>
-          <Field label="Note (optionnel)">
-            <input className={inputClass} style={inputStyle} value={debtForm.note} onChange={(e) => setDebtForm({ ...debtForm, note: e.target.value })} placeholder="Ex. solde avant l'application" />
-          </Field>
-        </div>
-        <button onClick={addExistingDebt} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Plus size={14} /> Ajouter cette dette
-        </button>
-      </div>
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Enregistrer un paiement</div>
-        <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Fournisseur">
-            <select className={inputClass} style={inputStyle} value={payForm.supplierId} onChange={(e) => setPayForm({ ...payForm, supplierId: e.target.value })}>
-              <option value="">— Choisir —</option>
-              {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name} ({fmt(s.balanceDue || 0)} DHS dû)</option>)}
-            </select>
-          </Field>
-          <Field label="Montant payé (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={payForm.amount} onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })} />
-          </Field>
-        </div>
-        <button onClick={recordPayment} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.success, color: C.success }}>
-          <Save size={14} /> Enregistrer le paiement
-        </button>
-      </div>
-
-      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Téléphone</td><td className="px-4 py-3">Total achats</td><td className="px-4 py-3">Solde dû</td><td className="px-4 py-3">Relevé</td><td className="px-4 py-3"></td>
-            </tr>
-          </thead>
-          <tbody>
-            {db.suppliers.map((s) => (
-              <tr key={s.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={{ color: C.ink }}>{s.name}</td>
-                <td className="px-4 py-3 flex items-center gap-1" style={{ color: C.inkSoft }}><Phone size={12} />{s.phone || "—"}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(spentBySupplier(s.name))} DHS</td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: (s.balanceDue || 0) > 0 ? C.danger : C.success }}>{fmt(s.balanceDue || 0)} DHS</td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    <button onClick={() => printSupplierStatement(s)} title="Télécharger en PDF" className="text-xs px-2 py-1 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
-                      <Printer size={12} /> PDF
-                    </button>
-                    <button onClick={() => exportSupplierStatementExcel(s)} title="Télécharger en Excel" className="text-xs px-2 py-1 rounded-md border flex items-center gap-1" style={{ borderColor: C.border, color: C.inkSoft }}>
-                      <Download size={12} /> Excel
-                    </button>
-                  </div>
-                </td>
-                <td className="px-4 py-3 text-right"><button onClick={() => removeSupplier(s.id)}><Trash2 size={14} color={C.danger} /></button></td>
-              </tr>
-            ))}
-            {db.suppliers.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun fournisseur enregistré.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique des paiements</div>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Fournisseur</td><td className="px-4 py-3">Montant</td>
-            </tr>
-          </thead>
-          <tbody>
-            {[...(db.supplierPayments || [])].reverse().map((p) => (
-              <tr key={p.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={monoFont}>{p.date}</td>
-                <td className="px-4 py-3">{p.supplierName}</td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: C.success }}>{fmt(p.amount)} DHS</td>
-              </tr>
-            ))}
-            {(!db.supplierPayments || db.supplierPayments.length === 0) && (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun paiement enregistré.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Chèques ----------
-function Cheques({ db, persist, notify, log }) {
-  const [form, setForm] = useState({ type: "received", number: "", bank: "", party: "", amount: "", dueDate: today() });
-
-  const addCheque = () => {
-    if (!form.number || !form.amount || !form.party) return notify("Numéro, montant et nom requis");
-    const cheque = { id: uid(), ...form, amount: Number(form.amount), status: "pending" };
-    persist({ ...db, cheques: [...db.cheques, cheque] });
-    setForm({ type: "received", number: "", bank: "", party: "", amount: "", dueDate: today() });
-    notify("Chèque enregistré");
-  };
-
-  const toggleStatus = (id) => {
-    const c = db.cheques.find((x) => x.id === id);
-    const newStatus = c && c.status === "pending" ? "cashed" : "pending";
-    persist({
-      ...db,
-      cheques: db.cheques.map((c) => (c.id === id ? { ...c, status: c.status === "pending" ? "cashed" : "pending" } : c)),
-    });
-    if (log && c) log("update_cheque_status", "cheques", id, { number: c.number, newStatus });
-  };
-
-  const removeCheque = (id) => {
-    const c = db.cheques.find((x) => x.id === id);
-    const prevDb = db;
-    persist({ ...db, cheques: db.cheques.filter((c) => c.id !== id) });
-    if (log && c) log("delete_cheque", "cheques", id, { number: c.number });
-    if (c) notify(`Chèque "${c.number}" supprimé`, () => persist(prevDb));
-  };
-
-  const echeances = useMemo(() => {
-    const todayStr = today();
-    const daysUntil = (d) => Math.floor((new Date(d) - new Date(todayStr)) / 86400000);
-    const chequesDue = db.cheques
-      .filter((c) => c.status === "pending")
-      .map((c) => ({ kind: "cheque", label: `Chèque ${c.number} (${c.type === "received" ? "reçu de" : "à payer à"} ${c.party})`, amount: c.amount, date: c.dueDate, days: daysUntil(c.dueDate) }));
-    const chargesDue = (db.recurringCharges || [])
-      .map((c) => ({ kind: "charge", label: `Charge récurrente : ${c.label}`, amount: c.amount, date: c.nextDueDate, days: daysUntil(c.nextDueDate) }));
-    const suppliersDue = (db.suppliers || [])
-      .filter((s) => (s.balanceDue || 0) > 0)
-      .map((s) => ({ kind: "fournisseur", label: `Solde dû à ${s.name}`, amount: s.balanceDue, date: null, days: null }));
-    return [...chequesDue.sort((a, b) => a.days - b.days), ...chargesDue.sort((a, b) => a.days - b.days), ...suppliersDue.sort((a, b) => b.amount - a.amount)];
-  }, [db.cheques, db.suppliers, db.recurringCharges]);
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Trésorerie" title="Chèques" />
-
-      {echeances.length > 0 && (
-        <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Prochaines échéances</div>
-          <div className="space-y-2">
-            {echeances.map((e, idx) => (
-              <div key={idx} className="flex items-center justify-between text-sm py-1.5 border-b" style={{ borderColor: C.border }}>
-                <div className="flex-1">
-                  <span style={{ color: C.ink }}>{e.label}</span>
-                  {e.date && (
-                    <span
-                      className="ml-2 text-[10px] px-2 py-0.5 rounded"
-                      style={{
-                        ...monoFont,
-                        background: e.days < 0 ? C.dangerSoft : e.days <= 7 ? C.accentSoft : C.border,
-                        color: e.days < 0 ? C.danger : e.days <= 7 ? "#8A6D00" : C.inkSoft,
-                      }}
-                    >
-                      {e.days < 0 ? `En retard (${Math.abs(e.days)} j)` : e.days === 0 ? "Aujourd'hui" : `Dans ${e.days} j`}
-                    </span>
-                  )}
-                </div>
-                <span style={{ ...monoFont, color: C.ink }}>{fmt(e.amount)} DHS</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau chèque</div>
-        <div className="grid md:grid-cols-6 gap-3">
-          <Field label="Type">
-            <select className={inputClass} style={inputStyle} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
-              <option value="received">Reçu (client)</option>
-              <option value="issued">Émis (fournisseur)</option>
-            </select>
-          </Field>
-          <Field label="N° chèque"><input className={inputClass} style={inputStyle} value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} /></Field>
-          <Field label="Banque"><input className={inputClass} style={inputStyle} value={form.bank} onChange={(e) => setForm({ ...form, bank: e.target.value })} /></Field>
-          <Field label={form.type === "received" ? "Client" : "Fournisseur"}><input className={inputClass} style={inputStyle} value={form.party} onChange={(e) => setForm({ ...form, party: e.target.value })} /></Field>
-          <Field label="Montant (DHS)"><input type="number" className={inputClass} style={inputStyle} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
-          <Field label="Échéance"><input type="date" className={inputClass} style={inputStyle} value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} /></Field>
-        </div>
-        <button onClick={addCheque} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Plus size={14} /> Enregistrer le chèque
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        {[...db.cheques].reverse().map((c) => (
-          <div key={c.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
-            <div>
-              <div className="flex items-center gap-2">
-                <span style={monoFont} className="text-sm">{c.number}</span>
-                <span className="text-xs px-2 py-0.5 rounded-full border" style={{ borderColor: C.border, color: C.inkSoft }}>
-                  {c.type === "received" ? "Reçu" : "Émis"}
-                </span>
-              </div>
-              <div style={{ color: C.inkSoft }} className="text-xs">{c.party} · {c.bank || "—"} · échéance {c.dueDate}</div>
-            </div>
-            <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(c.amount)} DHS</div>
-            <Stamp status={c.status === "cashed" ? "paid" : "pending"} labels={["ENCAISSÉ", "EN ATTENTE"]} />
-            <div className="flex gap-2">
-              <button onClick={() => toggleStatus(c.id)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                {c.status === "pending" ? "Marquer encaissé" : "Marquer en attente"}
-              </button>
-              <button onClick={() => removeCheque(c.id)}><Trash2 size={14} color={C.danger} /></button>
-            </div>
-          </div>
-        ))}
-        {db.cheques.length === 0 && (
-          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun chèque enregistré.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Devis ----------
-function Devis({ db, persist, notify, log, session }) {
-  const [cart, setCart] = useState([]);
-  const [clientId, setClientId] = useState("");
-  const [client, setClient] = useState("");
-
-  const addToCart = (p) => {
-    setCart((c) => {
-      const existing = c.find((i) => i.productId === p.id);
-      if (existing) return c.map((i) => (i.productId === p.id ? { ...i, qty: i.qty + 1 } : i));
-      return [...c, { productId: p.id, name: p.name, price: p.price, qty: 1 }];
-    });
-  };
-  const changeQty = (id, delta) =>
-    setCart((c) => c.map((i) => (i.productId === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
-  const removeItem = (id) => setCart((c) => c.filter((i) => i.productId !== id));
-  const total = cart.reduce((s, i) => s + i.price * i.qty, 0);
-
-  const saveQuote = () => {
-    if (cart.length === 0) return notify("Panier vide");
-    const number = "DEV-" + db.nextQuote;
-    const quote = { id: uid(), number, date: today(), client: client || "Client comptoir", clientId, items: cart, total, status: "draft" };
-    persist({ ...db, quotes: [...db.quotes, quote], nextQuote: db.nextQuote + 1 });
-    if (log) log("create_quote", "quotes", quote.id, { number, total });
-    setCart([]); setClient(""); setClientId("");
-    notify(`Devis ${number} enregistré`);
-  };
-
-  const convertToInvoice = (q) => {
-    for (const item of q.items) {
-      const prod = db.products.find((p) => p.id === item.productId);
-      if (!prod || productQty(prod) < item.qty) return notify(`Stock insuffisant pour ${item.name}`);
-    }
-    let products = [...db.products];
-    q.items.forEach((item) => {
-      products = adjustStock(products, item.productId, item.variantId, -item.qty);
-    });
-    const soldBy = session ? session.userName : "—";
-    const saleId = uid();
-    const sale = { id: saleId, date: today(), items: q.items, total: q.total, discount: 0, client: q.client, clientId: q.clientId, payment: "cash", soldBy };
-    const invoiceNumber = "NG-" + db.nextInvoice;
-    const invoice = { id: uid(), saleId, number: invoiceNumber, date: today(), client: q.client, clientId: q.clientId, total: q.total, status: "paid", items: q.items, soldBy };
-    persist({
-      ...db,
-      products,
-      sales: [...db.sales, sale],
-      invoices: [...db.invoices, invoice],
-      nextInvoice: db.nextInvoice + 1,
-      quotes: db.quotes.map((x) => (x.id === q.id ? { ...x, status: "converted" } : x)),
-    });
-    if (log) log("convert_quote", "quotes", q.id, { invoiceNumber });
-    notify(`Devis converti en facture ${invoiceNumber}`);
-  };
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Avant-vente" title="Devis" />
-      <div className="grid lg:grid-cols-3 gap-6 mb-10">
-        <div className="lg:col-span-2">
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {db.products.map((p) => (
-              <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
-                <div className="text-sm mb-1" style={{ color: C.ink }}>{p.name}</div>
-                <div style={{ ...monoFont, color: C.accent }} className="text-sm">{fmt(p.price)} DHS</div>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau devis</div>
-          {cart.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
-          ) : (
-            <ul className="space-y-3 mb-4">
-              {cart.map((i) => (
-                <li key={i.productId} className="flex items-center justify-between text-sm gap-2">
-                  <span style={{ color: C.ink }} className="flex-1">{i.name}</span>
-                  <button onClick={() => changeQty(i.productId, -1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={10} /></button>
-                  <span style={monoFont}>{i.qty}</span>
-                  <button onClick={() => changeQty(i.productId, 1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={10} /></button>
-                  <button onClick={() => removeItem(i.productId)}><X size={13} color={C.danger} /></button>
-                </li>
-              ))}
-            </ul>
-          )}
-          <Field label="Client">
-            <select className={inputClass} style={{ ...inputStyle, marginBottom: 10 }} value={clientId} onChange={(e) => {
-              const c = db.clients.find((x) => x.id === e.target.value);
-              setClientId(e.target.value); setClient(c ? c.name : "");
-            }}>
-              <option value="">Client comptoir</option>
-              {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-          <div className="flex justify-between items-center my-4 pt-3 border-t" style={{ borderColor: C.border }}>
-            <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="uppercase">Total</span>
-            <span style={{ ...displayFont, color: C.ink }} className="text-2xl">{fmt(total)} DHS</span>
-          </div>
-          <button onClick={saveQuote} className="w-full py-2.5 rounded-md text-sm text-white flex items-center justify-center gap-2" style={{ background: C.accent }}>
-            Enregistrer le devis <ChevronRight size={14} />
-          </button>
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {[...db.quotes].reverse().map((q) => (
-          <div key={q.id} className="rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3" style={{ borderColor: C.border, background: C.paperCard }}>
-            <div>
-              <div style={monoFont} className="text-sm">{q.number}</div>
-              <div style={{ color: C.inkSoft }} className="text-xs">{q.client} · {q.date}</div>
-            </div>
-            <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(q.total)} DHS</div>
-            <Stamp status={q.status === "converted" ? "paid" : "pending"} labels={["CONVERTI", "BROUILLON"]} />
-            {q.status !== "converted" && (
-              <button onClick={() => convertToInvoice(q)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                Convertir en facture
-              </button>
-            )}
-          </div>
-        ))}
-        {db.quotes.length === 0 && (
-          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun devis pour l'instant.</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------- Bons de livraison ----------
-function Livraison({ db, persist, notify, log }) {
-  const [clientId, setClientId] = useState("");
-  const [client, setClient] = useState("");
-  const [items, setItems] = useState([]);
-  const [payAmounts, setPayAmounts] = useState({});
-  const [productQ, setProductQ] = useState("");
-  const [showCamera, setShowCamera] = useState(false);
-
-  const addToCart = (p) => {
-    setItems((c) => {
-      const existing = c.find((i) => i.productId === p.id);
-      if (existing) return c.map((i) => (i.productId === p.id ? { ...i, qty: i.qty + 1 } : i));
-      return [...c, { productId: p.id, name: p.name, qty: 1, unitPrice: p.price || 0 }];
-    });
-  };
-  const changeQty = (id, delta) =>
-    setItems((c) => c.map((i) => (i.productId === id ? { ...i, qty: Math.max(1, i.qty + delta) } : i)));
-  const changePrice = (id, val) =>
-    setItems((c) => c.map((i) => (i.productId === id ? { ...i, unitPrice: Number(val) || 0 } : i)));
-  const removeItem = (id) => setItems((c) => c.filter((i) => i.productId !== id));
-
-  const handleCameraDetected = (code) => {
-    setShowCamera(false);
-    const cleanCode = String(code || "").trim();
-    const found = findByCode(db.products, cleanCode);
-    if (!found) return notify(`Aucun produit avec ce code (${cleanCode})`);
-    addToCart(found.product);
-  };
-
-  const cartMontant = items.reduce((s, i) => s + i.qty * (i.unitPrice || 0), 0);
-
-  const createBL = () => {
-    if (items.length === 0) return notify("Aucun article sélectionné");
-    const number = "BL-" + db.nextBL;
-    const montant = cartMontant;
-    const itemsWithStatus = items.map((i) => ({ ...i, status: "attente" }));
-    const bl = { id: uid(), number, date: today(), client: client || "Client comptoir", clientId, items: itemsWithStatus, montant };
-    persist({ ...db, deliveryNotes: [...db.deliveryNotes, bl], nextBL: db.nextBL + 1 });
-    if (log) log("create_bl", "deliveryNotes", bl.id, { number, montant, articles: itemsWithStatus.length });
-    setItems([]); setClient(""); setClientId("");
-    notify(`Colis ${number} créé avec ${itemsWithStatus.length} article(s)`);
-  };
-
-  // Statut d'un article : utilise son propre statut, ou celui (ancien) du colis pour les colis créés avant cette mise à jour
-  const itemStatus = (bl, item) => item.status || bl.status || "attente";
-
-  const printColisLabel = async (bl, client) => {
-    const dataUrl = await QRCode.toDataURL(bl.number, { width: 200, margin: 1 });
-    const html = `
-      <html>
-        <head>
-          <title>Étiquette — ${bl.number}</title>
-          <style>
-            body { font-family: Inter, sans-serif; padding: 20px; max-width: 380px; margin: auto; }
-            .box { border: 2px solid #14161B; border-radius: 8px; padding: 16px; }
-            .num { font-family: monospace; font-size: 20px; font-weight: bold; text-align: center; margin-bottom: 10px; }
-            .qr { text-align: center; margin-bottom: 12px; }
-            .row { margin-bottom: 6px; font-size: 13px; }
-            .label { text-transform: uppercase; font-size: 10px; color: #666; letter-spacing: 0.08em; }
-            .cod { text-align: center; font-size: 22px; font-weight: bold; margin-top: 10px; border-top: 1px dashed #999; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="box">
-            <div class="num">${bl.number}</div>
-            <div class="qr"><img src="${dataUrl}" width="160" height="160" /></div>
-            <div class="row"><div class="label">Destinataire</div>${bl.client}</div>
-            ${client && client.phone ? `<div class="row"><div class="label">Téléphone</div>${client.phone}</div>` : ""}
-            <div class="row"><div class="label">Contenu</div>${bl.items.map((i) => `${i.name} ×${i.qty}`).join(", ")}</div>
-            <div class="cod">${fmt(bl.montant || 0)} DHS</div>
-          </div>
-        </body>
-      </html>`;
-    const w = window.open("", "_blank", "width=420,height=560");
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
-
-  const colisOverallStatus = (bl) => {
-    const statuses = bl.items.map((i) => itemStatus(bl, i));
-    if (statuses.every((s) => s === "livre")) return "livre";
-    if (statuses.every((s) => s === "echec")) return "echec";
-    if (statuses.every((s) => s === "attente")) return "attente";
-    return "partiel";
-  };
-
-  // Article livré : seul le montant de CET article s'ajoute au solde dû du client
-  const markItemDelivered = (blId, productId) => {
-    const bl = db.deliveryNotes.find((b) => b.id === blId);
-    if (!bl) return;
-    const item = bl.items.find((i) => i.productId === productId);
-    if (!item) return;
-    const montantArticle = item.qty * (item.unitPrice || 0);
-    const clients = bl.clientId
-      ? db.clients.map((c) => (c.id === bl.clientId ? { ...c, balanceDue: (c.balanceDue || 0) + montantArticle } : c))
-      : db.clients;
-    const deliveryNotes = db.deliveryNotes.map((b) =>
-      b.id === blId ? { ...b, items: b.items.map((i) => (i.productId === productId ? { ...i, status: "livre" } : i)) } : b
-    );
-    persist({ ...db, clients, deliveryNotes });
-    if (log) log("mark_item_delivered", "deliveryNotes", blId, { number: bl.number, article: item.name, montant: montantArticle });
-    notify(`${item.name} marqué livré (${bl.number})`);
-  };
-
-  // Échec de livraison d'un article : cet article revient, son stock est remis, aucun montant dû pour lui
-  const markItemEchec = (blId, productId) => {
-    const bl = db.deliveryNotes.find((b) => b.id === blId);
-    if (!bl) return;
-    const item = bl.items.find((i) => i.productId === productId);
-    if (!item) return;
-    const products = adjustStock(db.products, item.productId, item.variantId || null, item.qty);
-    const deliveryNotes = db.deliveryNotes.map((b) =>
-      b.id === blId ? { ...b, items: b.items.map((i) => (i.productId === productId ? { ...i, status: "echec" } : i)) } : b
-    );
-    persist({ ...db, products, deliveryNotes });
-    if (log) log("mark_item_echec", "deliveryNotes", blId, { number: bl.number, article: item.name });
-    notify(`${item.name} : échec, remis en stock (${bl.number})`);
-  };
-
-  // Encaissement d'un paiement client (cycle semaine / 10 jours / sur place)
-  const encaisser = (c) => {
-    const amount = Number(payAmounts[c.id]);
-    if (!amount || amount <= 0) return notify("Montant invalide");
-    const payment = { id: uid(), date: today(), clientId: c.id, clientName: c.name, amount };
-    persist({
-      ...db,
-      clients: db.clients.map((x) => (x.id === c.id ? { ...x, balanceDue: Math.max(0, (x.balanceDue || 0) - amount) } : x)),
-      clientPayments: [...(db.clientPayments || []), payment],
-    });
-    if (log) log("encaissement_client", "clients", c.id, { name: c.name, amount });
-    setPayAmounts((p) => ({ ...p, [c.id]: "" }));
-    notify(`Paiement de ${fmt(amount)} DHS encaissé pour ${c.name}`);
-  };
-
-  const clientsAvecColis = db.clients.filter((c) => db.deliveryNotes.some((b) => b.clientId === c.id));
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Logistique" title="Colis & Bons de livraison" />
-      <div className="grid lg:grid-cols-3 gap-6 mb-10">
-        <div className="lg:col-span-2">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="flex items-center gap-2 border rounded-md px-3 py-2 max-w-sm flex-1" style={{ borderColor: C.border, background: C.paperCard }}>
-              <Search size={14} color={C.inkSoft} />
-              <input
-                placeholder="Rechercher par nom ou code-barres…"
-                className="w-full outline-none text-sm bg-transparent"
-                style={{ color: C.ink }}
-                value={productQ}
-                onChange={(e) => setProductQ(e.target.value)}
-              />
-            </div>
-            <button
-              onClick={() => setShowCamera(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md text-sm border"
-              style={{ borderColor: C.border, color: C.ink, background: C.paperCard }}
-              title="Scanner un code-barres"
-            >
-              <Camera size={14} />
-            </button>
-          </div>
-          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {db.products
-              .filter((p) => (p.name + " " + p.sku + " " + (p.barcode || "")).toLowerCase().includes(productQ.toLowerCase()))
-              .map((p) => (
-                <button key={p.id} onClick={() => addToCart(p)} className="text-left rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
-                  <div className="text-sm" style={{ color: C.ink }}>{p.name}</div>
-                  <div style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}>{p.sku} · {fmt(p.price)} DHS</div>
-                </button>
-              ))}
-          </div>
-        </div>
-        <div className="rounded-xl border p-5 h-fit" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouveau colis</div>
-          {items.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Cliquez sur un produit pour l'ajouter.</p>
-          ) : (
-            <ul className="space-y-3 mb-4">
-              {items.map((i) => (
-                <li key={i.productId} className="flex items-center justify-between text-sm gap-2">
-                  <span style={{ color: C.ink }} className="flex-1">{i.name}</span>
-                  <button onClick={() => changeQty(i.productId, -1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Minus size={10} /></button>
-                  <span style={monoFont}>{i.qty}</span>
-                  <button onClick={() => changeQty(i.productId, 1)} className="w-5 h-5 border rounded flex items-center justify-center" style={{ borderColor: C.border }}><Plus size={10} /></button>
-                  <input
-                    type="number"
-                    value={i.unitPrice}
-                    onChange={(e) => changePrice(i.productId, e.target.value)}
-                    className="w-16 border rounded px-1 py-0.5 text-xs"
-                    style={inputStyle}
-                    title="Prix unitaire"
-                  />
-                  <button onClick={() => removeItem(i.productId)}><X size={13} color={C.danger} /></button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {items.length > 0 && (
-            <div className="flex items-center justify-between text-sm mb-4" style={{ color: C.ink }}>
-              <span>Montant du colis</span>
-              <span style={monoFont}>{fmt(cartMontant)} DHS</span>
-            </div>
-          )}
-          <Field label="Client / destinataire">
-            <select className={inputClass} style={{ ...inputStyle, marginBottom: 10 }} value={clientId} onChange={(e) => {
-              const c = db.clients.find((x) => x.id === e.target.value);
-              setClientId(e.target.value); setClient(c ? c.name : "");
-            }}>
-              <option value="">Client comptoir</option>
-              {db.clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          </Field>
-          <button onClick={createBL} className="w-full py-2.5 rounded-md text-sm text-white flex items-center justify-center gap-2" style={{ background: C.accent }}>
-            Créer le colis <ChevronRight size={14} />
-          </button>
-        </div>
-      </div>
-
-      {/* Suivi de colis */}
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Suivi de colis</div>
-      <div className="space-y-3 mb-10">
-        {[...db.deliveryNotes].reverse().map((b) => {
-          const c = b.clientId ? db.clients.find((x) => x.id === b.clientId) : null;
-          const overall = colisOverallStatus(b);
-          return (
-            <div key={b.id} className="rounded-xl border p-4" style={{ borderColor: C.border, background: C.paperCard }}>
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                <div>
-                  <div style={monoFont} className="text-sm">{b.number}</div>
-                  <div style={{ color: C.inkSoft }} className="text-xs">
-                    {b.client} · {b.date} · {b.items.length} article(s) · {fmt(b.montant || 0)} DHS
-                    {c && <> · {PAYMENT_MODE_LABELS[c.paymentMode || "surplace"]}</>}
-                  </div>
-                </div>
-                {overall === "partiel" ? (
-                  <span
-                    className="ek-badge inline-flex items-center gap-1 px-2.5 py-1 rounded-full border-2"
-                    style={{ ...monoFont, fontSize: 10, letterSpacing: "0.12em", color: C.accent, borderColor: C.accent, transform: "rotate(-2deg)" }}
-                  >
-                    <AlertCircle size={11} /> PARTIEL
-                  </span>
-                ) : (
-                  <Stamp
-                    status={overall === "livre" ? "paid" : overall === "echec" ? "returned" : "pending"}
-                    labels={["LIVRÉ", "EN ATTENTE"]}
-                  />
-                )}
-                <button
-                  onClick={() => printColisLabel(b, c)}
-                  title="Imprimer l'étiquette d'expédition"
-                  className="text-xs px-2.5 py-1.5 rounded-md border flex items-center gap-1"
-                  style={{ borderColor: C.border, color: C.inkSoft }}
-                >
-                  <Printer size={12} /> Étiquette
-                </button>
-              </div>
-
-              <div className="space-y-1.5 border-t pt-3" style={{ borderColor: C.border }}>
-                {b.items.map((it) => {
-                  const st = itemStatus(b, it);
-                  return (
-                    <div key={it.productId} className="flex items-center justify-between gap-2 text-sm">
-                      <div className="flex-1">
-                        <span style={{ color: C.ink }}>{it.name}</span>
-                        <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }}> × {it.qty} · {fmt(it.qty * (it.unitPrice || 0))} DHS</span>
-                      </div>
-                      {st === "attente" ? (
-                        <div className="flex gap-1.5 shrink-0">
-                          <button onClick={() => markItemDelivered(b.id, it.productId)} className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                            Livré
-                          </button>
-                          <button onClick={() => markItemEchec(b.id, it.productId)} className="text-[11px] px-2 py-1 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
-                            Échec
-                          </button>
-                        </div>
-                      ) : (
-                        <span
-                          className="text-[10px] px-2 py-0.5 rounded shrink-0"
-                          style={{
-                            ...monoFont,
-                            background: st === "livre" ? C.successSoft : C.dangerSoft,
-                            color: st === "livre" ? C.success : C.danger,
-                          }}
-                        >
-                          {st === "livre" ? "LIVRÉ" : "ÉCHEC"}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-        {db.deliveryNotes.length === 0 && (
-          <div className="text-center py-12 text-sm" style={{ color: C.inkSoft }}>Aucun colis pour l'instant.</div>
-        )}
-      </div>
-
-      {/* Totaux par client, selon leur mode de paiement */}
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Total dû par client</div>
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Client</td>
-              <td className="px-4 py-3">Mode de paiement</td>
-              <td className="px-4 py-3">Solde dû</td>
-              <td className="px-4 py-3">Encaisser</td>
-            </tr>
-          </thead>
-          <tbody>
-            {clientsAvecColis.map((c) => (
-              <tr key={c.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={{ color: C.ink }}>{c.name}</td>
-                <td className="px-4 py-3 text-xs" style={{ color: C.inkSoft }}>{PAYMENT_MODE_LABELS[c.paymentMode || "surplace"]}</td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: (c.balanceDue || 0) > 0 ? C.danger : C.success }}>{fmt(c.balanceDue || 0)} DHS</td>
-                <td className="px-4 py-3">
-                  {(c.balanceDue || 0) > 0 && (
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="number"
-                        placeholder="Montant"
-                        value={payAmounts[c.id] || ""}
-                        onChange={(e) => setPayAmounts((p) => ({ ...p, [c.id]: e.target.value }))}
-                        className="w-24 border rounded px-2 py-1 text-xs"
-                        style={inputStyle}
-                      />
-                      <button onClick={() => encaisser(c)} className="text-xs px-2 py-1 rounded-md border" style={{ borderColor: C.accent, color: C.accent }}>
-                        OK
-                      </button>
-                    </div>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {clientsAvecColis.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun client avec des colis pour l'instant.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {showCamera && <CameraScanner onDetected={handleCameraDetected} onClose={() => setShowCamera(false)} />}
-    </div>
-  );
-}
-
-// ---------- Équipe ----------
-function Equipe({ session, notify, log }) {
-  const [profiles, setProfiles] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    setLoading(true);
-    setProfiles(await sbFetchAllProfiles(session));
-    setLoading(false);
-  };
-
-  useEffect(() => { load(); }, []);
-
-  const changeRole = async (p, role) => {
-    if (p.id === session.userId && role !== "admin") {
-      return notify("Vous ne pouvez pas retirer votre propre accès admin");
-    }
-    const ok = await sbUpdateRole(session, p.id, role);
-    if (ok) {
-      notify(`${p.full_name} est maintenant ${role === "admin" ? "Admin" : "Vendeur"}`);
-      if (log) log("update_role", "profiles", p.id, { name: p.full_name, role });
-      load();
-    } else {
-      notify("Échec de la mise à jour");
-    }
-  };
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Sécurité" title="Équipe" />
-      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Nom</td><td className="px-4 py-3">Rôle</td><td className="px-4 py-3">Membre depuis</td>
-            </tr>
-          </thead>
-          <tbody>
-            {profiles.map((p) => (
-              <tr key={p.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={{ color: C.ink }}>{p.full_name}</td>
-                <td className="px-4 py-3">
-                  <select
-                    className={inputClass}
-                    style={{ ...inputStyle, width: 140 }}
-                    value={p.role}
-                    onChange={(e) => changeRole(p, e.target.value)}
-                  >
-                    <option value="vendeur">Vendeur</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: C.inkSoft }}>
-                  {p.created_at ? new Date(p.created_at).toLocaleDateString("fr-FR") : "—"}
-                </td>
-              </tr>
-            ))}
-            {!loading && profiles.length === 0 && (
-              <tr><td colSpan={3} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucun membre trouvé.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-2">Ajouter un membre</div>
-        <p className="text-sm" style={{ color: C.inkSoft }}>
-          Pour des raisons de sécurité, la création de nouveaux comptes se fait depuis Supabase :
-          Authentication → Users → Add user. Le nouveau membre reçoit automatiquement le rôle "Vendeur",
-          que vous pouvez changer ici ensuite.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Charges ----------
-function Charges({ db, persist, notify, log }) {
-  const [form, setForm] = useState({ label: "", category: "Loyer", amount: "", date: today() });
-  const [recurForm, setRecurForm] = useState({ label: "", category: "Loyer", amount: "", frequency: "mensuelle", nextDueDate: today() });
-
-  const categories = ["Loyer", "Électricité / Eau", "Salaires", "Transport", "Marketing", "Internet / Téléphone", "Emballage / Fournitures", "Autre"];
-  const frequencies = { hebdomadaire: 7, mensuelle: 30, annuelle: 365 };
-
-  const addCharge = () => {
-    if (!form.label || !form.amount) return notify("Description et montant requis");
-    const charge = { id: uid(), date: form.date, label: form.label, category: form.category, amount: Number(form.amount) };
-    persist({ ...db, charges: [...(db.charges || []), charge] });
-    if (log) log("create_charge", "charges", charge.id, { label: charge.label, amount: charge.amount });
-    setForm({ label: "", category: "Loyer", amount: "", date: today() });
-    notify("Charge enregistrée");
-  };
-
-  const addRecurring = () => {
-    if (!recurForm.label || !recurForm.amount) return notify("Description et montant requis");
-    const rc = { id: uid(), label: recurForm.label, category: recurForm.category, amount: Number(recurForm.amount), frequency: recurForm.frequency, nextDueDate: recurForm.nextDueDate };
-    persist({ ...db, recurringCharges: [...(db.recurringCharges || []), rc] });
-    if (log) log("create_recurring_charge", "recurringCharges", rc.id, { label: rc.label });
-    setRecurForm({ label: "", category: "Loyer", amount: "", frequency: "mensuelle", nextDueDate: today() });
-    notify("Charge récurrente ajoutée");
-  };
-
-  const markRecurringPaid = (rc) => {
-    const charge = { id: uid(), date: today(), label: rc.label, category: rc.category, amount: rc.amount };
-    const nextDue = new Date(rc.nextDueDate);
-    nextDue.setDate(nextDue.getDate() + frequencies[rc.frequency]);
-    const recurringCharges = db.recurringCharges.map((x) => (x.id === rc.id ? { ...x, nextDueDate: nextDue.toISOString().slice(0, 10) } : x));
-    persist({ ...db, charges: [...(db.charges || []), charge], recurringCharges });
-    if (log) log("pay_recurring_charge", "charges", charge.id, { label: rc.label, amount: rc.amount });
-    notify(`"${rc.label}" marquée payée — prochaine échéance : ${nextDue.toISOString().slice(0, 10)}`);
-  };
-
-  const removeRecurring = (id) => {
-    persist({ ...db, recurringCharges: (db.recurringCharges || []).filter((x) => x.id !== id) });
-  };
-
-  const removeCharge = (id) => {
-    const c = (db.charges || []).find((x) => x.id === id);
-    const prevDb = db;
-    persist({ ...db, charges: db.charges.filter((c) => c.id !== id) });
-    if (log && c) log("delete_charge", "charges", id, { label: c.label });
-    if (c) notify(`Charge "${c.label}" supprimée`, () => persist(prevDb));
-  };
-
-  const total = (db.charges || []).reduce((s, c) => s + c.amount, 0);
-  const byCategory = useMemo(() => {
-    const map = {};
-    (db.charges || []).forEach((c) => { map[c.category] = (map[c.category] || 0) + c.amount; });
-    return Object.entries(map).map(([name, total]) => ({ name, total })).sort((a, b) => b.total - a.total);
-  }, [db.charges]);
-
-  const daysUntil = (d) => Math.floor((new Date(d) - new Date(today())) / 86400000);
-
-  return (
-    <div>
-      <SectionTitle
-        eyebrow="Dépenses"
-        title="Charges"
-        action={
-          <div className="text-right">
-            <div style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest">Total des charges</div>
-            <div style={{ ...displayFont, color: C.danger }} className="text-xl">{fmt(total)} DHS</div>
-          </div>
-        }
-      />
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Nouvelle charge</div>
-        <div className="grid md:grid-cols-4 gap-3">
-          <Field label="Description">
-            <input className={inputClass} style={inputStyle} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="Ex. Loyer du mois" />
-          </Field>
-          <Field label="Catégorie">
-            <select className={inputClass} style={inputStyle} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-          <Field label="Montant (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} />
-          </Field>
-          <Field label="Date">
-            <input type="date" className={inputClass} style={inputStyle} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-          </Field>
-        </div>
-        <button onClick={addCharge} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Plus size={14} /> Ajouter la charge
-        </button>
-      </div>
-
-      <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Charges récurrentes (avec rappel)</div>
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-          Pour les charges qui reviennent régulièrement (loyer, internet…). Une fois payée, l'échéance suivante est calculée automatiquement et un rappel apparaît dans "Aujourd'hui" et le calendrier des échéances.
-        </p>
-        <div className="grid md:grid-cols-5 gap-3">
-          <Field label="Description">
-            <input className={inputClass} style={inputStyle} value={recurForm.label} onChange={(e) => setRecurForm({ ...recurForm, label: e.target.value })} placeholder="Ex. Internet" />
-          </Field>
-          <Field label="Catégorie">
-            <select className={inputClass} style={inputStyle} value={recurForm.category} onChange={(e) => setRecurForm({ ...recurForm, category: e.target.value })}>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </Field>
-          <Field label="Montant (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={recurForm.amount} onChange={(e) => setRecurForm({ ...recurForm, amount: e.target.value })} />
-          </Field>
-          <Field label="Fréquence">
-            <select className={inputClass} style={inputStyle} value={recurForm.frequency} onChange={(e) => setRecurForm({ ...recurForm, frequency: e.target.value })}>
-              <option value="hebdomadaire">Chaque semaine</option>
-              <option value="mensuelle">Chaque mois</option>
-              <option value="annuelle">Chaque année</option>
-            </select>
-          </Field>
-          <Field label="Prochaine échéance">
-            <input type="date" className={inputClass} style={inputStyle} value={recurForm.nextDueDate} onChange={(e) => setRecurForm({ ...recurForm, nextDueDate: e.target.value })} />
-          </Field>
-        </div>
-        <button onClick={addRecurring} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border" style={{ borderColor: C.border, color: C.ink }}>
-          <Plus size={14} /> Ajouter la charge récurrente
-        </button>
-
-        {(db.recurringCharges || []).length > 0 && (
-          <div className="mt-5 space-y-2">
-            {[...db.recurringCharges].sort((a, b) => a.nextDueDate.localeCompare(b.nextDueDate)).map((rc) => {
-              const days = daysUntil(rc.nextDueDate);
-              return (
-                <div key={rc.id} className="flex items-center justify-between text-sm py-2 border-t" style={{ borderColor: C.border }}>
-                  <div>
-                    <span style={{ color: C.ink }}>{rc.label}</span>
-                    <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="ml-2">{rc.category} · {fmt(rc.amount)} DHS · {rc.frequency}</span>
-                    <span
-                      className="ml-2 text-[10px] px-2 py-0.5 rounded"
-                      style={{
-                        ...monoFont,
-                        background: days < 0 ? C.dangerSoft : days <= 5 ? C.accentSoft : C.border,
-                        color: days < 0 ? C.danger : days <= 5 ? "#8A6D00" : C.inkSoft,
-                      }}
-                    >
-                      {days < 0 ? `En retard (${Math.abs(days)} j)` : days === 0 ? "Aujourd'hui" : `Dans ${days} j`}
-                    </span>
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button onClick={() => markRecurringPaid(rc)} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.success, color: C.success }}>
-                      Marquer payée
-                    </button>
-                    <button onClick={() => removeRecurring(rc.id)}><Trash2 size={13} color={C.danger} /></button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {byCategory.length > 0 && (
-        <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          {byCategory.map((c) => (
-            <div key={c.name} className="rounded-md border p-3" style={{ borderColor: C.border, background: C.paperCard }}>
-              <div style={{ color: C.inkSoft }} className="text-xs mb-1">{c.name}</div>
-              <div style={{ ...displayFont, color: C.ink }} className="text-lg">{fmt(c.total)} DHS</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="rounded-xl border overflow-hidden" style={{ borderColor: C.border, background: C.paperCard }}>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Date</td><td className="px-4 py-3">Description</td><td className="px-4 py-3">Catégorie</td>
-              <td className="px-4 py-3">Montant</td><td className="px-4 py-3"></td>
-            </tr>
-          </thead>
-          <tbody>
-            {[...(db.charges || [])].reverse().map((c) => (
-              <tr key={c.id} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={monoFont}>{c.date}</td>
-                <td className="px-4 py-3" style={{ color: C.ink }}>{c.label}</td>
-                <td className="px-4 py-3" style={{ color: C.inkSoft }}>{c.category}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(c.amount)} DHS</td>
-                <td className="px-4 py-3 text-right"><button onClick={() => removeCharge(c.id)}><Trash2 size={14} color={C.danger} /></button></td>
-              </tr>
-            ))}
-            {(!db.charges || db.charges.length === 0) && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>Aucune charge enregistrée.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-// ---------- Finance / Comptabilité ----------
-function printBilanAnnuel({ db, company, totalRevenue, totalCosts, totalCharges, cashProfit, stockValueAtCost, stockValue, currentCapital, years }) {
-  const creances = db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0);
-  const dettes = db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0);
-  const yearsRows = years
-    .map(
-      (y) => `<tr>
-        <td style="padding:6px 0;">${y.year}</td>
-        <td style="padding:6px 0;text-align:right;">${fmt(y.revenue)} DHS</td>
-        <td style="padding:6px 0;text-align:right;">${fmt(y.costs)} DHS</td>
-        <td style="padding:6px 0;text-align:right;color:${y.profit >= 0 ? "#1FA97A" : "#E5484D"};">${fmt(y.profit)} DHS</td>
-      </tr>`
-    )
-    .join("");
-
-  const html = `
-    <html>
-      <head>
-        <title>Bilan annuel — ${company.name || "Electrolik"}</title>
-        <style>
-          body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 760px; margin: auto; }
-          h1 { font-style: italic; margin-bottom: 0; }
-          .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 28px; margin-bottom: 10px; }
-          table { width: 100%; border-collapse: collapse; }
-          th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #5B6274; border-bottom: 1px solid #DBDFE7; padding-bottom: 6px; }
-          th:nth-child(2), th:nth-child(3), th:nth-child(4) { text-align: right; }
-          td { border-bottom: 1px solid #EEE; }
-          .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 8px; }
-          .card { border: 1px solid #E4E6EB; border-radius: 8px; padding: 14px 16px; }
-          .card .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #5B6274; }
-          .card .value { font-size: 20px; font-style: italic; margin-top: 4px; }
-        </style>
-      </head>
-      <body>
-        <h1>${company.name || "Electrolik"}</h1>
-        <div class="muted">Bilan annuel — Généré le ${today()}</div>
-        <p style="font-size:13px; color:#5B6274;">
-          ICE : ${company.ice || "—"} · RC : ${company.rc || "—"} · Patente : ${company.patente || "—"}<br/>
-          ${company.address || ""}${company.phone ? " · " + company.phone : ""}
-        </p>
-
-        <div class="muted">Résultat global (toutes années confondues)</div>
-        <div class="grid">
-          <div class="card"><div class="label">Chiffre d'affaires total</div><div class="value">${fmt(totalRevenue)} DHS</div></div>
-          <div class="card"><div class="label">Achats / coûts totaux</div><div class="value">${fmt(totalCosts)} DHS</div></div>
-          <div class="card"><div class="label">Charges totales</div><div class="value">${fmt(totalCharges)} DHS</div></div>
-          <div class="card"><div class="label">Bénéfice net</div><div class="value" style="color:${cashProfit >= 0 ? "#1FA97A" : "#E5484D"};">${fmt(cashProfit)} DHS</div></div>
-          <div class="card"><div class="label">Stock (au coût)</div><div class="value">${fmt(stockValueAtCost)} DHS</div></div>
-          <div class="card"><div class="label">Stock (valeur de revente)</div><div class="value">${fmt(stockValue)} DHS</div></div>
-          <div class="card"><div class="label">Créances clients</div><div class="value">${fmt(creances)} DHS</div></div>
-          <div class="card"><div class="label">Dettes fournisseurs</div><div class="value">${fmt(dettes)} DHS</div></div>
-        </div>
-        <div class="card" style="margin-top:16px;">
-          <div class="label">Capital actuel (patrimoine total)</div>
-          <div class="value" style="font-size:26px;">${fmt(currentCapital)} DHS</div>
-        </div>
-
-        <div class="muted">Détail par année</div>
-        <table>
-          <thead><tr><th>Année</th><th>Chiffre d'affaires</th><th>Achats / coûts</th><th>Bénéfice</th></tr></thead>
-          <tbody>${yearsRows || `<tr><td colspan="4" style="padding:12px 0;color:#5B6274;">Aucune donnée.</td></tr>`}</tbody>
-        </table>
-      </body>
-    </html>`;
-  const w = window.open("", "_blank");
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 300);
-}
-
-function Finance({ db, persist, notify, log, session }) {
-  const [capitalInput, setCapitalInput] = useState(String(db.capital || 0));
-  const [backups, setBackups] = useState([]);
-  const [backupsLoading, setBackupsLoading] = useState(true);
-  const [company, setCompany] = useState(db.company || { name: "", ice: "", rc: "", patente: "", address: "", phone: "", tvaRate: 20 });
-  const [restoreLabel, setRestoreLabel] = useState("");
-  const [restorePoints, setRestorePoints] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("ek-restore-points") || "[]");
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [lockPin, setLockPin] = useState(() => {
-    try {
-      return localStorage.getItem("ek-lock-pin") || "";
-    } catch (e) {
-      return "";
-    }
-  });
-  const [lockPinInput, setLockPinInput] = useState("");
-
-  const saveLockPin = () => {
-    if (lockPinInput.length !== 4 || !/^\d{4}$/.test(lockPinInput)) return notify("Le code doit être composé de 4 chiffres");
-    try {
-      localStorage.setItem("ek-lock-pin", lockPinInput);
-    } catch (e) {}
-    setLockPin(lockPinInput);
-    setLockPinInput("");
-    notify("Code de verrouillage enregistré sur cet appareil");
-  };
-
-  const removeLockPin = () => {
-    try {
-      localStorage.removeItem("ek-lock-pin");
-    } catch (e) {}
-    setLockPin("");
-    notify("Verrouillage rapide désactivé");
-  };
-
-  const saveRestorePoint = () => {
-    const now = new Date();
-    const point = {
-      id: uid(),
-      label: restoreLabel,
-      date: today(),
-      time: now.toTimeString().slice(0, 5),
-      data: db,
-    };
-    const next = [...restorePoints, point].slice(-5); // garde les 5 derniers seulement
-    setRestorePoints(next);
-    try {
-      localStorage.setItem("ek-restore-points", JSON.stringify(next));
-    } catch (e) {
-      notify("Impossible d'enregistrer — trop de données pour ce navigateur");
-      return;
-    }
-    setRestoreLabel("");
-    notify("Point de restauration créé");
-  };
-
-  const restoreFromPoint = (rp) => {
-    if (!window.confirm(`Restaurer l'état de "${rp.label || "Sans nom"}" (${rp.date} ${rp.time}) ? Les modifications faites depuis seront perdues.`)) return;
-    persist(rp.data);
-    if (log) log("restore_point", "db", rp.id, { label: rp.label, date: rp.date });
-    notify("Données restaurées");
-  };
-
-  const deleteRestorePoint = (id) => {
-    const next = restorePoints.filter((rp) => rp.id !== id);
-    setRestorePoints(next);
-    try {
-      localStorage.setItem("ek-restore-points", JSON.stringify(next));
-    } catch (e) {}
-  };
-
-  const saveCompany = () => {
-    persist({ ...db, company });
-    if (log) log("update_company", "settings", "company", {});
-    notify("Informations de l'entreprise mises à jour");
-  };
-
-  useEffect(() => {
-    (async () => {
-      const list = await sbListBackups(session);
-      setBackups(list);
-      setBackupsLoading(false);
-    })();
-  }, []);
-
-  const backupNow = async () => {
-    await sbSaveBackup(session, db);
-    notify("Sauvegarde cloud effectuée");
-    setBackups(await sbListBackups(session));
-  };
-
-  const restore = async (date) => {
-    if (!confirm(`Restaurer les données du ${date} ? Ceci remplacera les données actuelles.`)) return;
-    const data = await sbRestoreBackup(session, date);
-    if (!data) return notify("Sauvegarde introuvable");
-    persist(data);
-    if (log) log("restore_backup", "backups", date, {});
-    notify(`Données restaurées depuis le ${date}`);
-  };
-
-  const saveCapital = () => {
-    const amount = Number(capitalInput) || 0;
-    persist({ ...db, capital: amount });
-    if (log) log("update_capital", "settings", "capital", { amount });
-    notify("Capital initial mis à jour");
-  };
-
-  const totalRevenue = db.sales.filter((x) => !x.returned).reduce((s, x) => s + x.total, 0);
-  const totalCosts = db.purchases.reduce((s, x) => s + x.total, 0);
-  const totalCharges = (db.charges || []).reduce((s, x) => s + x.amount, 0);
-  const stockValue = db.products.reduce((s, p) => s + p.price * productQty(p), 0); // valeur au prix de vente
-  const stockValueAtCost = db.products.reduce((s, p) => s + (p.costPrice || 0) * productQty(p), 0); // valeur au coût d'achat
-  const cashProfit = totalRevenue - totalCosts - totalCharges; // bénéfice réel : ventes moins achats moins charges (loyer, salaires...)
-  const currentCapital = (db.capital || 0) + cashProfit + stockValueAtCost; // patrimoine total : capital de départ + bénéfice encaissé + valeur de la marchandise encore en stock (au coût)
-
-  const printBilanAnnuel = () => {
-    const companyInfo = db.company || {};
-    const year = new Date().getFullYear();
-    const creances = (db.clients || []).reduce((s, c) => s + (c.balanceDue || 0), 0);
-    const dettesFournisseurs = (db.suppliers || []).reduce((s, x) => s + (x.balanceDue || 0), 0);
-    const html = `
-      <html>
-        <head>
-          <title>Bilan annuel ${year}</title>
-          <style>
-            body { font-family: Georgia, serif; color: #161B26; padding: 40px; max-width: 720px; margin: auto; }
-            h1 { font-style: italic; margin-bottom: 0; }
-            .muted { color: #5B6274; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; margin-top: 24px; margin-bottom: 8px; }
-            table { width: 100%; border-collapse: collapse; }
-            td { padding: 6px 0; border-bottom: 1px solid #EEE; }
-            td:last-child { text-align: right; font-family: monospace; }
-            .total { display: flex; justify-content: space-between; margin-top: 16px; font-size: 22px; font-style: italic; border-top: 2px solid #161B26; padding-top: 10px; }
-          </style>
-        </head>
-        <body>
-          <h1>${companyInfo.name || "Electrolik"}</h1>
-          <div class="muted">Bilan annuel — ${year}</div>
-          ${companyInfo.ice ? `<p style="font-size:12px;color:#5B6274;">ICE: ${companyInfo.ice} ${companyInfo.rc ? " · RC: " + companyInfo.rc : ""}</p>` : ""}
-
-          <div class="muted">Actif</div>
-          <table>
-            <tr><td>Stock (valeur au coût d'achat)</td><td>${fmt(stockValueAtCost)} DHS</td></tr>
-            <tr><td>Créances clients (soldes dus)</td><td>${fmt(creances)} DHS</td></tr>
-          </table>
-
-          <div class="muted">Passif</div>
-          <table>
-            <tr><td>Dettes fournisseurs (soldes dus)</td><td>${fmt(dettesFournisseurs)} DHS</td></tr>
-          </table>
-
-          <div class="muted">Résultat de l'exercice</div>
-          <table>
-            <tr><td>Chiffre d'affaires (ventes)</td><td>${fmt(totalRevenue)} DHS</td></tr>
-            <tr><td>Coût des achats</td><td>−${fmt(totalCosts)} DHS</td></tr>
-            <tr><td>Charges (loyer, salaires, etc.)</td><td>−${fmt(totalCharges)} DHS</td></tr>
-            <tr><td><b>Bénéfice net</b></td><td><b>${fmt(cashProfit)} DHS</b></td></tr>
-          </table>
-
-          <div class="total">
-            <span>Patrimoine total (capital actuel)</span>
-            <span>${fmt(currentCapital)} DHS</span>
-          </div>
-          <p style="font-size:11px;color:#5B6274;margin-top:6px;">
-            Capital initial (${fmt(db.capital || 0)} DHS) + bénéfice net + valeur du stock au coût.
-          </p>
-        </body>
-      </html>`;
-    const w = window.open("", "_blank");
-    w.document.write(html);
-    w.document.close();
-    w.focus();
-    setTimeout(() => w.print(), 300);
-  };
-
-  // group by year
-  const years = useMemo(() => {
-    const map = {};
-    db.sales.filter((s) => !s.returned).forEach((s) => {
-      const y = s.date.slice(0, 4);
-      map[y] = map[y] || { revenue: 0, costs: 0 };
-      map[y].revenue += s.total;
-    });
-    db.purchases.forEach((p) => {
-      const y = p.date.slice(0, 4);
-      map[y] = map[y] || { revenue: 0, costs: 0 };
-      map[y].costs += p.total;
-    });
-    return Object.entries(map)
-      .map(([year, v]) => ({ year, ...v, profit: v.revenue - v.costs }))
-      .sort((a, b) => b.year.localeCompare(a.year));
-  }, [db.sales, db.purchases]);
-
-  return (
-    <div>
-      <SectionTitle eyebrow="Finances" title="Comptabilité & capital" />
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4 flex items-center gap-2">
-          <Settings size={14} /> Informations de l'entreprise (facture)
-        </div>
-        <div className="grid md:grid-cols-3 gap-3">
-          <Field label="Nom de l'entreprise">
-            <input className={inputClass} style={inputStyle} value={company.name} onChange={(e) => setCompany({ ...company, name: e.target.value })} />
-          </Field>
-          <Field label="ICE">
-            <input className={inputClass} style={inputStyle} value={company.ice} onChange={(e) => setCompany({ ...company, ice: e.target.value })} />
-          </Field>
-          <Field label="RC">
-            <input className={inputClass} style={inputStyle} value={company.rc} onChange={(e) => setCompany({ ...company, rc: e.target.value })} />
-          </Field>
-          <Field label="Patente">
-            <input className={inputClass} style={inputStyle} value={company.patente} onChange={(e) => setCompany({ ...company, patente: e.target.value })} />
-          </Field>
-          <Field label="Téléphone">
-            <input className={inputClass} style={inputStyle} value={company.phone} onChange={(e) => setCompany({ ...company, phone: e.target.value })} />
-          </Field>
-          <Field label="Taux de TVA (%)">
-            <input type="number" className={inputClass} style={inputStyle} value={company.tvaRate} onChange={(e) => setCompany({ ...company, tvaRate: Number(e.target.value) })} />
-          </Field>
-          <Field label="Adresse">
-            <input className={inputClass} style={inputStyle} value={company.address} onChange={(e) => setCompany({ ...company, address: e.target.value })} />
-          </Field>
-          <Field label="Objectif de vente mensuel (DHS)">
-            <input type="number" className={inputClass} style={inputStyle} value={company.monthlyTarget || 0} onChange={(e) => setCompany({ ...company, monthlyTarget: Number(e.target.value) })} />
-          </Field>
-        </div>
-        <button onClick={saveCompany} className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-          <Save size={14} /> Enregistrer
-        </button>
-        <p className="text-xs mt-3" style={{ color: C.inkSoft }}>
-          Ces informations apparaissent sur les factures imprimées. Mettez 0 dans "Taux de TVA" si vous ne facturez pas la TVA.
-        </p>
-      </div>
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">
-          Capital initial
-        </div>
-        <div className="flex items-end gap-3 flex-wrap">
-          <Field label="Montant (DHS)">
-            <input
-              type="number"
-              className={inputClass}
-              style={{ ...inputStyle, width: 220 }}
-              value={capitalInput}
-              onChange={(e) => setCapitalInput(e.target.value)}
-            />
-          </Field>
-          <button onClick={saveCapital} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white" style={{ background: C.accent }}>
-            <Save size={14} /> Enregistrer
-          </button>
-        </div>
-        <p className="text-xs mt-2" style={{ color: C.inkSoft }}>
-          Le montant que vous avez investi au départ pour lancer l'activité.
-        </p>
-      </div>
-
-      <div className="rounded-xl border p-5 mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1 flex items-center gap-2">
-          <Lock size={14} /> Verrouillage rapide (code PIN)
-        </div>
-        <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-          Utile si plusieurs personnes utilisent le même appareil au comptoir : verrouille l'écran sans devoir se déconnecter complètement. Le code est propre à cet appareil.
-        </p>
-        {lockPin ? (
-          <div className="flex items-center gap-3">
-            <span className="text-sm" style={{ color: C.success }}>✓ Verrouillage activé sur cet appareil</span>
-            <button onClick={removeLockPin} className="text-xs px-3 py-1.5 rounded-md border" style={{ borderColor: C.danger, color: C.danger }}>
-              Désactiver
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-end gap-3">
-            <Field label="Code à 4 chiffres">
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                className={inputClass}
-                style={{ ...inputStyle, width: 140, letterSpacing: "0.3em" }}
-                value={lockPinInput}
-                onChange={(e) => setLockPinInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
-              />
-            </Field>
-            <button onClick={saveLockPin} className="px-4 py-2 rounded-md text-sm text-white h-fit" style={{ background: C.accent }}>
-              Activer
-            </button>
-          </div>
-        )}
-      </div>
-
-      <div className="flex justify-between items-center mb-3">
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest">Bilan de l'entreprise</div>
-        <button onClick={printBilanAnnuel} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-md border" style={{ borderColor: C.border, color: C.ink }}>
-          <Printer size={13} /> Bilan annuel (PDF)
-        </button>
-      </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
-        <StatCard label="Capital initial" value={fmt(db.capital || 0) + " DHS"} icon={Wallet} />
-        <StatCard label="Charges" value={fmt(totalCharges) + " DHS"} icon={Receipt} tone={totalCharges > 0 ? "danger" : "default"} />
-        <StatCard label="Bénéfice net (après charges)" value={fmt(cashProfit) + " DHS"} icon={TrendingUp} tone={cashProfit >= 0 ? "success" : "danger"} />
-        <StatCard label="Stock (au coût)" value={fmt(stockValueAtCost) + " DHS"} icon={Boxes} />
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
-        <StatCard label="Capital actuel (patrimoine total)" value={fmt(currentCapital) + " DHS"} icon={PiggyBank} tone="success" />
-        <StatCard label="Stock (valeur de revente)" value={fmt(stockValue) + " DHS"} icon={Boxes} />
-      </div>
-      <p className="text-xs -mt-5 mb-8" style={{ color: C.inkSoft }}>
-        Bénéfice net = Ventes − Achats − Charges (loyer, salaires, etc.). Capital actuel = Capital initial + Bénéfice net + Valeur du stock encore en magasin (au coût d'achat).
-      </p>
-
-      <div className="grid md:grid-cols-2 gap-4 mb-8">
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Créances clients (à recevoir)</div>
-          <div style={{ ...displayFont, color: C.success }} className="text-2xl">{fmt(db.clients.reduce((s, c) => s + (c.balanceDue || 0), 0))} DHS</div>
-          <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vos clients vous doivent (ventes à crédit).</p>
-        </div>
-        <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Dettes fournisseurs (à payer)</div>
-          <div style={{ ...displayFont, color: C.danger }} className="text-2xl">{fmt(db.suppliers.reduce((s, x) => s + (x.balanceDue || 0), 0))} DHS</div>
-          <p className="text-xs mt-1" style={{ color: C.inkSoft }}>Argent que vous devez à vos fournisseurs (achats à crédit).</p>
-        </div>
-      </div>
-
-      <div className="rounded-xl border overflow-hidden mb-6" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div className="px-4 py-3 border-b flex items-center justify-between" style={{ borderColor: C.border }}>
-          <span style={{ ...monoFont, fontSize: 11, color: C.inkSoft }}>BILAN ANNUEL</span>
-          <button
-            onClick={() => printBilanAnnuel({ db, company, totalRevenue, totalCosts, totalCharges, cashProfit, stockValueAtCost, stockValue, currentCapital, years })}
-            className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-md border"
-            style={{ borderColor: C.border, color: C.inkSoft }}
-          >
-            <Printer size={12} /> Télécharger le bilan (PDF)
-          </button>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr style={{ ...monoFont, fontSize: 10, color: C.inkSoft }} className="uppercase tracking-widest border-b">
-              <td className="px-4 py-3">Année</td>
-              <td className="px-4 py-3">Chiffre d'affaires</td>
-              <td className="px-4 py-3">Achats / coûts</td>
-              <td className="px-4 py-3">Bénéfice</td>
-            </tr>
-          </thead>
-          <tbody>
-            {years.map((y) => (
-              <tr key={y.year} className="border-b" style={{ borderColor: C.border }}>
-                <td className="px-4 py-3" style={displayFont}>{y.year}</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(y.revenue)} DHS</td>
-                <td className="px-4 py-3" style={monoFont}>{fmt(y.costs)} DHS</td>
-                <td className="px-4 py-3" style={{ ...monoFont, color: y.profit >= 0 ? C.success : C.danger }}>
-                  {fmt(y.profit)} DHS
-                </td>
-              </tr>
-            ))}
-            {years.length === 0 && (
-              <tr><td colSpan={4} className="px-4 py-8 text-center text-sm" style={{ color: C.inkSoft }}>
-                Aucune donnée pour l'instant — enregistrez des ventes ou des achats.
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <p className="text-xs mb-8" style={{ color: C.inkSoft }}>
-        Bénéfice = chiffre d'affaires des ventes − coûts des achats, pour chaque année. Le capital actuel additionne le capital initial et le bénéfice net cumulé sur toute la période.
-      </p>
-
-      <div className="rounded-xl border p-5" style={{ borderColor: C.border, background: C.paperCard }}>
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Sauvegarde des données</div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={backupNow}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.success, color: C.success }}
-          >
-            <Save size={14} /> Sauvegarder sur le cloud maintenant
-          </button>
-        </div>
-        <p className="text-xs mt-3 mb-6" style={{ color: C.inkSoft }}>
-          Une sauvegarde automatique vers Supabase se fait à chaque modification et à chaque connexion — une ligne par jour, toujours à jour.
-        </p>
-
-        <div className="mb-6">
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-3">Historique des sauvegardes cloud</div>
-          {backupsLoading ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Chargement…</p>
-          ) : backups.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Aucune sauvegarde cloud pour l'instant.</p>
-          ) : (
-            <ul className="space-y-2">
-              {backups.map((b) => (
-                <li key={b.backup_date} className="flex items-center justify-between text-sm border rounded-md px-3 py-2" style={{ borderColor: C.border }}>
-                  <span style={monoFont}>{b.backup_date}</span>
-                  <span style={{ color: C.inkSoft }} className="text-xs">par {b.updated_by || "—"}</span>
-                  <button onClick={() => restore(b.backup_date)} className="text-xs px-3 py-1 rounded-md border" style={{ borderColor: C.accent, color: C.accent }}>
-                    Restaurer
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-4">Sauvegarde manuelle (fichier)</div>
-        <div className="flex flex-wrap gap-3">
-          <button
-            onClick={() => {
-              const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url; a.download = `negoce-sauvegarde-${today()}.json`; a.click();
-              URL.revokeObjectURL(url);
-              notify("Sauvegarde téléchargée");
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.border, color: C.ink }}
-          >
-            <Download size={14} /> Exporter (JSON)
-          </button>
-
-          <label className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border cursor-pointer" style={{ borderColor: C.border, color: C.ink }}>
-            <Upload size={14} /> Importer
-            <input
-              type="file"
-              accept="application/json"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                  try {
-                    const imported = JSON.parse(evt.target.result);
-                    persist({ ...DEFAULT_DB, ...imported });
-                    notify("Données importées avec succès");
-                  } catch {
-                    notify("Fichier invalide");
-                  }
-                };
-                reader.readAsText(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
-
-          <button
-            onClick={() => {
-              const ws = XLSX.utils.json_to_sheet(db.products.map((p) => ({
-                Produit: p.name,
-                SKU: p.sku,
-                "Code-barres": p.barcode || "",
-                Catégorie: p.category,
-                "Coût d'achat": p.costPrice || 0,
-                "Prix de vente": p.price,
-                "Marge (DHS)": p.price - (p.costPrice || 0),
-                "Marge (%)": p.price ? Math.round(((p.price - (p.costPrice || 0)) / p.price) * 100) : 0,
-                Quantité: p.qty,
-                "Seuil min.": p.minQty,
-                "Valeur stock (coût)": (p.costPrice || 0) * p.qty,
-                "Valeur stock (vente)": p.price * p.qty,
-                Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
-              })));
-              const wb = XLSX.utils.book_new();
-              XLSX.utils.book_append_sheet(wb, ws, "Stock");
-              XLSX.writeFile(wb, `stock-complet-${today()}.xlsx`);
-              notify("Export Excel téléchargé");
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm border"
-            style={{ borderColor: C.border, color: C.ink }}
-          >
-            <Download size={14} /> Stock (Excel)
-          </button>
-
-          <button
-            onClick={() => {
-              const wb = XLSX.utils.book_new();
-              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.products.map((p) => ({
-                Produit: p.name,
-                SKU: p.sku,
-                "Code-barres": p.barcode || "",
-                Catégorie: p.category,
-                "Coût d'achat": p.costPrice || 0,
-                "Prix de vente": p.price,
-                "Marge (DHS)": p.price - (p.costPrice || 0),
-                "Marge (%)": p.price ? Math.round(((p.price - (p.costPrice || 0)) / p.price) * 100) : 0,
-                Quantité: p.qty,
-                "Seuil min.": p.minQty,
-                "Valeur stock (coût)": (p.costPrice || 0) * p.qty,
-                "Valeur stock (vente)": p.price * p.qty,
-                Statut: p.qty <= 0 ? "Rupture" : p.qty <= p.minQty ? "Stock bas" : "OK",
-              }))), "Stock");
-              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.purchases.map((p) => ({
-                Date: p.date, Produit: p.productName, Fournisseur: p.supplier, Quantité: p.qty, "Coût unitaire": p.unitCost, Total: p.total,
-              }))), "Achats");
-              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.sales.map((s) => ({
-                Date: s.date, Client: s.client, Total: s.total, Remise: s.discount || 0, Paiement: s.payment,
-              }))), "Ventes");
-              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.invoices.map((i) => ({
-                Numéro: i.number, Date: i.date, Client: i.client, Total: i.total, Statut: i.status === "paid" ? "Payé" : "En attente",
-              }))), "Factures");
-              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.clients.map((c) => ({
-                Client: c.name, Téléphone: c.phone, "Solde dû": c.balanceDue || 0,
-              }))), "Clients");
-              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.suppliers.map((s) => ({
-                Fournisseur: s.name, Téléphone: s.phone,
-              }))), "Fournisseurs");
-              XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(db.cheques.map((c) => ({
-                Type: c.type === "received" ? "Reçu" : "Émis", Numéro: c.number, Banque: c.bank,
-                Partie: c.party, Montant: c.amount, Échéance: c.dueDate, Statut: c.status === "cashed" ? "Encaissé" : "En attente",
-              }))), "Chèques");
-              XLSX.writeFile(wb, `negoce-sauvegarde-complete-${today()}.xlsx`);
-              notify("Sauvegarde complète (Excel) téléchargée");
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white"
-            style={{ background: C.accent }}
-          >
-            <Download size={14} /> Sauvegarde complète (Excel, toutes les feuilles)
-          </button>
-        </div>
-        <p className="text-xs mt-3" style={{ color: C.inkSoft }}>
-          Exportez régulièrement une sauvegarde JSON pour ne jamais perdre vos données.
-        </p>
-
-        <div className="mt-8 border-t pt-6" style={{ borderColor: C.border }}>
-          <div style={{ ...monoFont, fontSize: 11, color: C.inkSoft }} className="uppercase tracking-widest mb-1">Points de restauration rapides</div>
-          <p className="text-xs mb-4" style={{ color: C.inkSoft }}>
-            Sauvegarde instantanée sur cet appareil, avant une modification importante. Pratique pour annuler rapidement en cas d'erreur.
-          </p>
-          <div className="flex gap-2 mb-4">
-            <input
-              value={restoreLabel}
-              onChange={(e) => setRestoreLabel(e.target.value)}
-              placeholder="Ex: avant import Excel"
-              className={inputClass}
-              style={{ ...inputStyle, maxWidth: 280 }}
-            />
-            <button onClick={saveRestorePoint} className="inline-flex items-center gap-2 px-4 py-2 rounded-md text-sm text-white shrink-0" style={{ background: C.accent }}>
-              <Save size={14} /> Créer maintenant
-            </button>
-          </div>
-          {restorePoints.length === 0 ? (
-            <p className="text-sm" style={{ color: C.inkSoft }}>Aucun point de restauration pour l'instant.</p>
-          ) : (
-            <ul className="space-y-2">
-              {[...restorePoints].reverse().map((rp) => (
-                <li key={rp.id} className="flex items-center justify-between text-sm border rounded-md px-3 py-2" style={{ borderColor: C.border }}>
-                  <div>
-                    <span style={{ color: C.ink }}>{rp.label || "Sans nom"}</span>
-                    <span style={{ ...monoFont, color: C.inkSoft, fontSize: 11 }} className="ml-2">{rp.date} {rp.time}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => restoreFromPoint(rp)} className="text-xs px-3 py-1 rounded-md border" style={{ borderColor: C.accent, color: C.accent }}>
-                      Restaurer
-                    </button>
-                    <button onClick={() => deleteRestorePoint(rp.id)}><Trash2 size={13} color={C.danger} /></button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
     </div>
   );
 }
